@@ -1,0 +1,47 @@
+
+# uri for data source; url or 'file://' string
+uri: file://../data/
+#uri: https://cli.fusio.net/cli/climate_data/webdata/
+
+# Address of Thrift host
+thrift: localhost
+# Host port
+port: 9090
+# Inter-request delay (sec)
+delay: 20
+
+# Number of rows of file to read
+#nrows: 1500
+
+# Folder to save files to
+folder: ../data
+# Path to save station data info to
+info: ./results/info.csv
+# Path to save station summary data
+station_summary: ./results/summary.txt
+
+# station analysis
+# ----------------
+# station number; number, list of numbers or 'none' to read all
+station_number: none
+#station_number: 5331
+#station_number: [3904, 575]
+# restrict to county; county name or 'none' for all
+station_county: none
+# filter stations by year opened; '<year','<=year','=year','>=year' or 'none' (for all)
+station_open_year: none
+# filter stations by year closed; '<year','<=year','=year','>=year', 'none' (for all) or '9999' (for still open)
+station_close_year: 9999
+
+# station readings
+# ----------------
+# Minimum date for readings; yyyy-mm-dd
+begin: 2011-06-26
+# Maximum date for readings; yyyy-mm-dd
+end: 2020-07-01
+# station number; number, list of numbers or 'none' to read all
+reading_stations: 3904
+#reading_stations: [3904, 575, 1075, 775, 2275, 1475, 518, 1775, 375, 3723, 532, 175, 1375, 875, 1875, 275, 1975, 2375, 2175, 4935, 1175, 1275, 675, 2075, 1575]
+# columns to save; note actual column names are 'name_<station id>'
+reading_columns: ['msl', 'dewpt', 'wetb', 'date', 'ind_wetb', 'rain', 'rhum', 'ind_rain', 'temp', 'vappr', 'ind_temp']
+
