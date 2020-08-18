@@ -1,6 +1,6 @@
 
 # uri for data source; url or 'file://' string
-uri: file://../data/
+uri: file://../../data/
 #uri: https://cli.fusio.net/cli/climate_data/webdata/
 
 # Address of Thrift host
@@ -14,7 +14,7 @@ delay: 20
 #nrows: 1500
 
 # Folder to save files to
-folder: ../data
+folder: ../../data
 # Path to save station data info to
 info: ./results/info.csv
 # Path to save station summary data

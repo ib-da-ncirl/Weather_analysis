@@ -25,6 +25,7 @@ import time
 from collections import namedtuple
 from enum import Enum
 from http import HTTPStatus
+from pathlib import Path
 from typing import Union, AnyStr, Tuple, List
 from zipfile import ZipFile, ZipExtFile
 import pandas as pd
@@ -35,12 +36,14 @@ import re
 import happybase
 from typing.io import IO
 
-from misc.arg_ctrl import ArgCtrl
+from misc import ArgCtrl, verify_path
 
 BASE_URL = 'https://cli.fusio.net/cli/climate_data/webdata/'
 INTER_REQ_DELAY = 10  # default inter-request delay to avoid swamping host
 DFLT_SAVE_FOLDER = './'
 DFLT_INFO_PATH = './info.csv'
+
+FILE_URI = 'file://'
 
 
 class Comparator(Enum):
@@ -186,7 +189,7 @@ def get_contents_or_path(uri: str, end_on_err=True) -> Tuple[Union[io.StringIO, 
             else:
                 result = content_result
 
-        elif uri.startswith('file://'):
+        elif uri.startswith(FILE_URI):
             file_path = get_file_path(uri)
             msg = None
             status = HTTPStatus.NOT_FOUND
@@ -233,7 +236,7 @@ def get_file_path(uri):
     :param uri:
     :return:
     """
-    return uri if uri.startswith('file://localhost') else uri[len('file://'):]
+    return uri if uri.startswith(f'{FILE_URI}localhost') else uri[len(FILE_URI):]
 
 
 DfFilter = namedtuple('DfFilter', ['column', 'op', 'value'])
@@ -661,6 +664,7 @@ def analyse_station_data(base_uri, station_id: int, station_name: str, read_args
                                       filters=filters)
 
     if df is not None:
+        verify_path(os.path.dirname(args['info']), typ='dir', create_dir=True)
         mode = 'a' if os.path.isfile(args['info']) else 'w'
         with open(args['info'], mode) as fout:
             if mode == 'w':
@@ -696,8 +700,8 @@ def station_analysis_summary(args: dict):
     for typ in ['hly', 'dly']:
         # read station analysis csv
         filepath = args['info']
-        if not filepath.startswith('file://'):
-            filepath = f"file://{args['info']}"
+        if not filepath.startswith(FILE_URI):
+            filepath = f"{FILE_URI}{args['info']}"
         df = load_csv(filepath, read_args={
             'parse_dates': ['min_date', 'max_date'],
         }, filters=DfFilter('type', 'subset_by_val', FilterArg(typ, Comparator.EQ)))
@@ -729,6 +733,7 @@ def station_analysis_summary(args: dict):
         for col in column_set:
             col_width = max(col_width, len(col))
 
+        verify_path(os.path.dirname(args['station_summary']), typ='dir', create_dir=True)
         with open(args['station_summary'], "w" if create else "a") as fhout:
             create = False
 
@@ -946,6 +951,12 @@ def main():
 
     args = sys.argv[1:] if len(sys.argv) > 1 else '-h'
     app_cfg = arg_ctrl.get_app_config(args, set_defaults=False)
+
+    # expand home folder relative paths, python does not expand the value of '~'
+    # instead, a literal directory is created relative to the current working directory
+    for key in ['uri', 'folder', 'info', 'station_summary']:
+        if '~' in app_cfg[key]:
+            app_cfg[key] = app_cfg[key].replace('~', Path.home().as_uri()[len(FILE_URI):])
 
     if app_cfg['verbose']:
         print(f"{app_cfg}")
