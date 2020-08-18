@@ -9,7 +9,6 @@ public class Constants {
 
     public static final String COMMENT_PREFIX = "#";
 
-    public static final TableName WEATHER_TABLE = TableName.valueOf("weather_info");
     public static final String FAMILY = "cf";
     public static final byte[] FAMILY_BYTES = FAMILY.getBytes();
 
@@ -34,6 +33,8 @@ public class Constants {
     public static final String DFLT_DATETIME_FMT = "yyyy-MM-dd HH:mm:ss";
     public static final DateTimeFormatter DATETIME_FMT = new DateTimeFormatterBuilder().
             appendPattern(DFLT_DATETIME_FMT).toFormatter();
+    public static final DateTimeFormatter YYYYMMDDHH_FMT = new DateTimeFormatterBuilder().
+            appendPattern("yyyyMMddHH").toFormatter();
 
     public static final String DEWPT_COL = "dewpt";
     public static final String IND_RAIN_COL = "ind_rain";
@@ -123,15 +124,38 @@ public class Constants {
     public static final String DFLT_CFG_FILE = "config.properties";
     public static final String MULTIPLE_CFG_FILE_SEP = ";";
 
+    public static final String CFG_HBASE_RESOURCE = "hbase_resource";
+    public static final String DFLT_HBASE_RESOURCE = "hbase-site.xml";
+
+    public static final String CFG_NUM_REDUCERS = "num_reducers";
+    public static final int DFLT_NUM_REDUCERS = 1;
+
+    public static final String CFG_SCAN_CACHING = "scan_caching";
+    public static final int DFLT_SCAN_CACHING = 500;
+
+    public static final String CFG_WEATHER_TABLE = "weather_table";
+    public static final String CFG_ANALYSIS_TABLE = "analysis_table";
+
     public static final String CFG_IN_PATH_ROOT = "global.in_path_root";
     public static final String CFG_OUT_PATH_ROOT = "global.out_path_root";
 
     public static final String CFG_MODE = "mode";                           // run mode; 'dev' or 'run'
     public static final String CFG_CLR_LAST_RESULT = "clear_last_result";   // clear last result; ignored in run mode
 
+    public static final String CFG_COLUMN_LIST = "column_list";          // required column list
+    public static final String CFG_COLUMN_LIST_SEP = ",";
+
+
     public static final String CFG_MA_WINDOW_SIZE = "moving_average_window_size";   // sma window size
     public static final int DFLT_MA_WINDOW_SIZE = 3;                                // default sma window size
     public static final String CFG_DATETIME_FMT = "datetime_format";                // sma window size
+    public static final String CFG_SMA_REDUCE_MODE = "sma_reduce_mode";             // sma reducer mode
+    public static final String SMA_FILE_REDUCE_MODE = "file";
+    public static final String SMA_TABLE_REDUCE_MODE = "table";
+    public static final String DFLT_SMA_REDUCE_MODE = SMA_FILE_REDUCE_MODE;
+    public static final String CFG_SMA_REDUCE_TABLE = "sma_reduce_table";           // table to store sma output
+    public static final String DFLT_SMA_REDUCE_TABLE = "sma_info";
+
 
 
 

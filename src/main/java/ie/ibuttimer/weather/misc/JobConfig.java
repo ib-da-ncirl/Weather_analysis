@@ -40,11 +40,19 @@ public class JobConfig {
     }
 
     private JobConfig(Properties properties, boolean wait, String inPathRoot, String outPathRoot) {
+        this(properties, wait, false, inPathRoot, outPathRoot);
+    }
+
+    private JobConfig(Properties properties, boolean wait, boolean verbose, String inPathRoot, String outPathRoot) {
         this.properties = properties;
         this.wait = wait;
-        this.verbose = true;
+        this.verbose = verbose;
         this.inPathRoot = inPathRoot;
         this.outPathRoot = outPathRoot;
+    }
+
+    public static JobConfig of(Properties properties, boolean wait, boolean verbose, String inPathRoot, String outPathRoot) {
+        return new JobConfig(properties, wait, verbose, inPathRoot, outPathRoot);
     }
 
     public static JobConfig of(Properties properties, boolean wait, String inPathRoot, String outPathRoot) {
@@ -93,5 +101,40 @@ public class JobConfig {
 
     public void setOutPathRoot(String outPathRoot) {
         this.outPathRoot = outPathRoot;
+    }
+
+    public String getProperty(String key) {
+        return properties.getProperty(key);
+    }
+
+    public String getProperty(String key, String defaultValue) {
+        return properties.getProperty(key, defaultValue);
+    }
+
+    public int getProperty(String key, int defaultValue) {
+        return Integer.parseInt(properties.getProperty(key, Integer.toString(defaultValue)));
+    }
+
+    public long getProperty(String key, long defaultValue) {
+        return Long.parseLong(properties.getProperty(key, Long.toString(defaultValue)));
+    }
+
+    public float getProperty(String key, float defaultValue) {
+        return Float.parseFloat(properties.getProperty(key, Float.toString(defaultValue)));
+    }
+
+    public double getProperty(String key, double defaultValue) {
+        return Double.parseDouble(properties.getProperty(key, Double.toString(defaultValue)));
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "{" +
+                "properties=" + properties +
+                ", wait=" + wait +
+                ", verbose=" + verbose +
+                ", inPathRoot='" + inPathRoot + '\'' +
+                ", outPathRoot='" + outPathRoot + '\'' +
+                '}';
     }
 }

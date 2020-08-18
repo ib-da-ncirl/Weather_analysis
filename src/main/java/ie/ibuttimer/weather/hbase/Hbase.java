@@ -22,7 +22,6 @@
 
 package ie.ibuttimer.weather.hbase;
 
-import com.google.protobuf.ServiceException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -31,14 +30,21 @@ import org.apache.hadoop.hbase.client.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.apache.hadoop.hbase.client.TableDescriptor.COMPARATOR;
 
 public class Hbase {
 
-    private Configuration configuration;
+    private final Configuration configuration;
     private Connection connection = null;
 
-    public Hbase(String resource) {
+    private Hbase(String resource) {
         this.configuration = configure(resource);
+    }
+
+    public static Hbase of(String resource) {
+        return new Hbase(resource);
     }
 
     public Configuration configure(String resource) {
@@ -69,18 +75,44 @@ public class Hbase {
         connection = null;
     }
 
-    public void createTable(String tableName, String columnFamily) throws IOException {
-        getConnection().getAdmin().createTable(
-            TableDescriptorBuilder.newBuilder(TableName.valueOf(tableName))
+    public TableDescriptor tableDescriptor(String tableName, String columnFamily) {
+        return TableDescriptorBuilder.newBuilder(TableName.valueOf(tableName))
                 .setColumnFamily(ColumnFamilyDescriptorBuilder.newBuilder(columnFamily.getBytes()).build())
-                .build()
-        );
+                .build();
+    }
+
+    public void createTable(String tableName, String columnFamily) throws IOException {
+        getConnection().getAdmin().createTable(tableDescriptor(tableName, columnFamily));
+    }
+
+    public void deleteTable(String tableName, String columnFamily) throws IOException {
+        getConnection().getAdmin().deleteTable(TableName.valueOf(tableName, columnFamily));
     }
 
     public List<TableDescriptor> getTables() throws IOException {
         return getConnection().getAdmin().listTableDescriptors();
     }
 
+    public boolean tableExists(String tableName, String columnFamily) throws IOException {
+        List<TableDescriptor> tableList = getTables();
+        TableDescriptor tableDescriptor = tableDescriptor(tableName, columnFamily);
+        AtomicBoolean exists = new AtomicBoolean(false);
+        tableList.stream()
+                .filter(t -> COMPARATOR.compare(t, tableDescriptor) == 0)
+                .findFirst()
+                .ifPresent(t -> exists.set(true));
+        return exists.get();
+    }
+
+    public boolean tableExists(TableName table) throws IOException {
+        List<TableDescriptor> tableList = getTables();
+        AtomicBoolean exists = new AtomicBoolean(false);
+        tableList.stream()
+                .filter(t -> table.compareTo(t.getTableName()) == 0)
+                .findFirst()
+                .ifPresent(t -> exists.set(true));
+        return exists.get();
+    }
 
     public boolean isAvailable() {
         boolean available = false;

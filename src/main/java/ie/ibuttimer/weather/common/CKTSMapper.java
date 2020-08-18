@@ -20,9 +20,10 @@
  *  SOFTWARE.
  */
 
-package ie.ibuttimer.weather.sma;
+package ie.ibuttimer.weather.common;
 
 import ie.ibuttimer.weather.misc.Value;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.NoTagsKeyValue;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
@@ -31,13 +32,16 @@ import org.apache.hadoop.hbase.mapreduce.TableMapper;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 
 import static ie.ibuttimer.weather.Constants.*;
 
-public class SMA_Mapper extends TableMapper<CompositeKey, TimeSeriesData> {
+public class CKTSMapper extends TableMapper<CompositeKey, TimeSeriesData> {
 
     private final CompositeKey reducerKey = new CompositeKey();
     private final TimeSeriesData reducerValue = new TimeSeriesData();
+
+    private String[] columnList;
 
     /*
         hbase(main):004:0> get "weather_info", "r-2020063015"
@@ -58,6 +62,11 @@ public class SMA_Mapper extends TableMapper<CompositeKey, TimeSeriesData> {
     @Override
     protected void setup(Context context) throws IOException, InterruptedException {
         super.setup(context);
+
+        Configuration conf = context.getConfiguration();
+
+        String listParam = conf.get(CFG_COLUMN_LIST);
+        columnList = listParam.split(CFG_COLUMN_LIST_SEP);
     }
 
     @Override
@@ -69,11 +78,14 @@ public class SMA_Mapper extends TableMapper<CompositeKey, TimeSeriesData> {
         value.listCells().stream()
                 .map(x -> ((NoTagsKeyValue) x).toStringMap())
                 .filter(x -> !x.get("qualifier").equals(DATE_COL))
+                .filter(x -> Arrays.stream(columnList).anyMatch(y -> ((String)x.get("qualifier")).matches(y)))
                 .forEach(x -> {
                     // read the cell value and write it out as
-                    // compositekey(column name, timestamp), timeseriesdata(timestamp, float value)
+                    // CompositeKey(column name, timestamp), TimeSeriesData(timestamp, float value)
                     String columnName = (String)x.get("qualifier");
                     long timestamp = dateTime.toEpochSecond(ZoneOffset.UTC);
+
+                    // set output key to column name, timestamp
                     reducerKey.set(columnName, timestamp);
 
                     reducerValue.setTimestamp(timestamp);

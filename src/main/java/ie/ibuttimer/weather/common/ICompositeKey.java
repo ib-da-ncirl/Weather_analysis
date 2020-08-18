@@ -20,14 +20,49 @@
  *  SOFTWARE.
  */
 
-package ie.ibuttimer.weather.sma;
+package ie.ibuttimer.weather.common;
 
-import org.apache.hadoop.mapreduce.Partitioner;
+import org.apache.hadoop.io.WritableComparable;
 
-public class SMA_Partitioner extends Partitioner<CompositeKey, TimeSeriesData> {
+/**
+ * Composite key interface
+ * @param <T>   Type of object
+ * @param <MK>  Type of main key
+ * @param <SK>  Type of subkey
+ */
+public interface ICompositeKey<T, MK, SK> extends WritableComparable<T> {
 
-    @Override
-    public int getPartition(CompositeKey compositeKey, TimeSeriesData timeSeriesData, int numPartitions) {
-        return Math.abs(compositeKey.getMainKey().hashCode() % numPartitions);
+    /**
+     * Set main key and sub key
+     * @param mainKey   Main key
+     * @param subKey    Sub key
+     */
+    default void set(MK mainKey, SK subKey) {
+        setMainKey(mainKey);
+        setSubKey(subKey);
     }
+
+    /**
+     * Get main key
+     * @return
+     */
+    MK getMainKey();
+
+    /**
+     * Get sub key
+     * @return
+     */
+    SK getSubKey();
+
+    /**
+     * Set main key
+     * @param mainKey   Main key
+     */
+    void setMainKey(MK mainKey);
+
+    /**
+     * Set sub key
+     * @param subKey    Sub key
+     */
+    void setSubKey(SK subKey);
 }

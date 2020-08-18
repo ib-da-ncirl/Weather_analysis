@@ -20,7 +20,7 @@
  *  SOFTWARE.
  */
 
-package ie.ibuttimer.weather.sma;
+package ie.ibuttimer.weather.common;
 
 import ie.ibuttimer.weather.misc.Value;
 import org.apache.hadoop.io.WritableComparable;

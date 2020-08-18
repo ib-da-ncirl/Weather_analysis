@@ -20,49 +20,39 @@
  *  SOFTWARE.
  */
 
-package ie.ibuttimer.weather.sma;
+package ie.ibuttimer.weather.misc;
 
-import org.apache.hadoop.io.WritableComparable;
+import org.apache.log4j.Logger;
 
-/**
- * Composite key interface
- * @param <T>   Type of object
- * @param <MK>  Type of main key
- * @param <SK>  Type of subkey
- */
-public interface ICompositeKey<T, MK, SK> extends WritableComparable<T> {
+public class AppLogger {
 
-    /**
-     * Set main key and sub key
-     * @param mainKey   Main key
-     * @param subKey    Sub key
-     */
-    default void set(MK mainKey, SK subKey) {
-        setMainKey(mainKey);
-        setSubKey(subKey);
+    private Logger logger;
+
+    private AppLogger(Logger logger) {
+        this.logger = logger;
     }
 
-    /**
-     * Get main key
-     * @return
-     */
-    MK getMainKey();
+    public static AppLogger of(Logger logger) {
+        return new AppLogger(logger);
+    }
 
-    /**
-     * Get sub key
-     * @return
-     */
-    SK getSubKey();
+    public Logger logger() {
+        return logger;
+    }
 
-    /**
-     * Set main key
-     * @param mainKey   Main key
-     */
-    void setMainKey(MK mainKey);
+    public void warn(Object message) {
+        logger.warn("Warning: " + message);
+    }
 
-    /**
-     * Set sub key
-     * @param subKey    Sub key
-     */
-    void setSubKey(SK subKey);
+    public void warn(Object message, Throwable t) {
+        logger.warn("Warning: " + message, t);
+    }
+
+    public void error(Object message) {
+        logger.warn("Error: " + message);
+    }
+
+    public void error(Object message, Throwable t) {
+        logger.warn("Error: " + message, t);
+    }
 }

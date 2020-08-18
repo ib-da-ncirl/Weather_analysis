@@ -22,57 +22,44 @@
 
 package ie.ibuttimer.weather.sma;
 
-import org.apache.hadoop.conf.Configuration;
+import ie.ibuttimer.weather.common.CompositeKey;
+import ie.ibuttimer.weather.common.TimeSeriesData;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Reducer;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
-
-import static ie.ibuttimer.weather.Constants.*;
 
 /**
  * Reducer to perform Simple Moving Average functionality
  */
-public class SMA_Reducer extends Reducer<CompositeKey, TimeSeriesData, Text, Text> {
+public class SmaFileReducer extends Reducer<CompositeKey, TimeSeriesData, Text, Text>
+                            implements SmaReducerEngine.ISmaReduceOutput<CompositeKey, TimeSeriesData, Text, Text> {
 
-    private int windowSize;
-    private DateTimeFormatter dateTimeFmt;
+    private SmaReducerEngine<CompositeKey, TimeSeriesData, Text, Text> engine;
 
-    private Text outKey = new Text();
-    private Text outValue = new Text();
+    private final Text outKey = new Text();
+    private final Text outValue = new Text();
+
 
     @Override
     protected void setup(Context context) throws IOException, InterruptedException {
 
-        Configuration conf = context.getConfiguration();
-
-        windowSize = conf.getInt(CFG_MA_WINDOW_SIZE, DFLT_MA_WINDOW_SIZE);
-
-        dateTimeFmt = new DateTimeFormatterBuilder().
-                appendPattern(conf.get(CFG_DATETIME_FMT, DFLT_DATETIME_FMT)).toFormatter();
+        this.engine = new SmaReducerEngine<>(context.getConfiguration(),  this);
     }
 
     @Override
     protected void reduce(CompositeKey key, Iterable<TimeSeriesData> values, Context context) {
 
-        MovingAverage movingAverage = new MovingAverage(windowSize);
+        engine.reduce(key, values, context);
+    }
 
-        values.forEach(v -> {
-                movingAverage.addNewNumber(v.getValue().doubleValue());
-                long timestamp = v.getTimestamp();
-                String dateTime = LocalDateTime.ofEpochSecond(timestamp, 0, ZoneOffset.UTC).format(dateTimeFmt);
+    @Override
+    public void reduce(CompositeKey key, String dateTime, double value, double movingAvg, double error, Context context)
+                                            throws IOException, InterruptedException {
+        outKey.set(key.getMainKey());
+        outValue.set(String.format("%s: actual: %5.2f  moving avg: %5.2f  error %5.2f  sq error %5.2f",
+                dateTime, value, movingAvg, error, Math.pow(error, 2)));
 
-                outKey.set(key.getMainKey());
-                outValue.set(String.format("%s: %5.2f", dateTime, movingAverage.getMovingAverage()));
-            try {
-                context.write(outKey, outValue);
-            } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
-            }
-        });
+        context.write(outKey, outValue);
     }
 }
