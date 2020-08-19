@@ -135,6 +135,7 @@ public class Constants {
 
     public static final String CFG_WEATHER_TABLE = "weather_table";
     public static final String CFG_ANALYSIS_TABLE = "analysis_table";
+    public static final String CFG_TRANSFORM_TABLE = "transform_table";
 
     public static final String CFG_IN_PATH_ROOT = "global.in_path_root";
     public static final String CFG_OUT_PATH_ROOT = "global.out_path_root";
@@ -156,6 +157,9 @@ public class Constants {
     public static final String CFG_SMA_REDUCE_TABLE = "sma_reduce_table";           // table to store sma output
     public static final String DFLT_SMA_REDUCE_TABLE = "sma_info";
 
+    public static final String CFG_TRANSFORM_LAG = "transform_lag";           // lag in hours
+    public static final String CFG_START_DATETIME = "start_datetime";          // filter start date/time
+    public static final String CFG_STOP_DATETIME = "stop_datetime";           // filter end date/time
 
 
 

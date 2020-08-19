@@ -24,6 +24,7 @@ package ie.ibuttimer.weather.sma;
 
 import ie.ibuttimer.weather.common.CompositeKey;
 import ie.ibuttimer.weather.common.TimeSeriesData;
+import ie.ibuttimer.weather.misc.Utils;
 import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.mapreduce.TableReducer;
@@ -31,10 +32,8 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.Text;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 
-import static ie.ibuttimer.weather.Constants.*;
+import static ie.ibuttimer.weather.Constants.FAMILY_BYTES;
 
 /**
  * Reducer to perform Simple Moving Average functionality
@@ -66,8 +65,7 @@ public class SmaTableReducer extends TableReducer<CompositeKey, TimeSeriesData, 
     @Override
     public void reduce(CompositeKey key, String dateTime, double value, double movingAvg, double error, Context context)
                                                                     throws IOException, InterruptedException {
-        String row = "r-" +
-                LocalDateTime.ofEpochSecond(key.getSubKey(), 0, ZoneOffset.UTC).format(YYYYMMDDHH_FMT);
+        String row = Utils.getRowName(key.getSubKey());
         Put put = new Put(Bytes.toBytes(row))
             .addColumn(FAMILY_BYTES, ACTUAL, Bytes.toBytes(value))
             .addColumn(FAMILY_BYTES, MOVING_AVG, Bytes.toBytes(movingAvg))

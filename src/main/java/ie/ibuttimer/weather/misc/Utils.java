@@ -24,10 +24,7 @@ package ie.ibuttimer.weather.misc;
 
 import org.apache.log4j.Logger;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
@@ -38,6 +35,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
+import static ie.ibuttimer.weather.Constants.YYYYMMDDHH_FMT;
 
 /**
  * Miscellaneous utilities
@@ -254,5 +253,13 @@ public class Utils {
      */
     public static String getSpacedDialog(String line) {
         return getSpacedDialog(Collections.singletonList(line));
+    }
+
+
+
+    public static String getRowName(long timestamp) {
+        return "r-" +
+                LocalDateTime.ofEpochSecond(timestamp, 0, ZoneOffset.UTC).format(YYYYMMDDHH_FMT);
+
     }
 }

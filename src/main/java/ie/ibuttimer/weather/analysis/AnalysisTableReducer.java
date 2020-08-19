@@ -32,7 +32,10 @@ import org.apache.hadoop.io.Text;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
+import static ie.ibuttimer.weather.Constants.DATETIME_FMT;
 import static ie.ibuttimer.weather.Constants.FAMILY_BYTES;
 
 /**
@@ -53,12 +56,16 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
     public static final byte[] MEAN = "mean".getBytes();
     public static final byte[] VARIANCE = "variance".getBytes();
     public static final byte[] STD_DEV = "std_dev".getBytes();
+    public static final byte[] MIN_TS = "min_ts".getBytes();
+    public static final byte[] MAX_TS = "max_ts".getBytes();
 
     private long count;
     private double min;
     private double max;
     private double mean;
     private double variance;
+    private long minTimestamp;
+    private long maxTimestamp;
 
     @Override
     protected void setup(Context context) throws IOException, InterruptedException {
@@ -68,6 +75,8 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
         this.max = Double.MIN_VALUE;
         this.mean = 0.0;
         this.variance = 0.0;
+        this.minTimestamp = Long.MAX_VALUE;
+        this.maxTimestamp = Long.MIN_VALUE;
     }
 
     @Override
@@ -90,22 +99,34 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
             mean += (delta / count);
             double delta2 = value - mean;
             variance += (delta * delta2);
+
+            long timestamp = v.getTimestamp();
+            if (timestamp < minTimestamp) {
+                minTimestamp = timestamp;
+            }
+            if (timestamp > maxTimestamp) {
+                maxTimestamp = timestamp;
+            }
         });
 
         // add entry with column name as row id
         String name = key.getMainKey();
-        double std_dev = Math.sqrt(variance);
+        double stdDev = Math.sqrt(variance);
+        String minTs = LocalDateTime.ofEpochSecond(minTimestamp, 0, ZoneOffset.UTC).format(DATETIME_FMT);
+        String maxTs = LocalDateTime.ofEpochSecond(maxTimestamp, 0, ZoneOffset.UTC).format(DATETIME_FMT);
         Put put = new Put(Bytes.toBytes(name))
             .addColumn(FAMILY_BYTES, COUNT, Bytes.toBytes(count))
             .addColumn(FAMILY_BYTES, MIN, Bytes.toBytes(min))
             .addColumn(FAMILY_BYTES, MAX, Bytes.toBytes(max))
             .addColumn(FAMILY_BYTES, MEAN, Bytes.toBytes(mean))
             .addColumn(FAMILY_BYTES, VARIANCE, Bytes.toBytes(variance))
-            .addColumn(FAMILY_BYTES, STD_DEV, Bytes.toBytes(std_dev));
+            .addColumn(FAMILY_BYTES, STD_DEV, Bytes.toBytes(stdDev))
+            .addColumn(FAMILY_BYTES, MIN_TS, Bytes.toBytes(minTs))
+            .addColumn(FAMILY_BYTES, MAX_TS, Bytes.toBytes(maxTs));
 
         logger.logger().info(
-                String.format("%s: count=%d  min=%f  max=%f  mean=%f  variance=%f  std_dev=%f",
-                        name, count, min, max, mean, variance, std_dev));
+                String.format("%s: count=%d  min=%f  max=%f  mean=%f  variance=%f  stdDev=%f  minTs=%s  maxTs=%s",
+                        name, count, min, max, mean, variance, stdDev, minTs, maxTs));
 
         context.write(null, put);
     }

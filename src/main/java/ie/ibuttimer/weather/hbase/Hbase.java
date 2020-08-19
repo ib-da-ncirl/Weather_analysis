@@ -22,16 +22,24 @@
 
 package ie.ibuttimer.weather.hbase;
 
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Maps;
+import ie.ibuttimer.weather.misc.DataTypes;
+import ie.ibuttimer.weather.misc.Value;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static ie.ibuttimer.weather.Constants.FAMILY_BYTES;
+import static ie.ibuttimer.weather.analysis.AnalysisTableReducer.MEAN;
 import static org.apache.hadoop.hbase.client.TableDescriptor.COMPARATOR;
 
 public class Hbase {
@@ -123,5 +131,70 @@ public class Hbase {
             e.printStackTrace();
         }
         return available;
+    }
+
+
+    public Map<String, Value> read(String tableName, String row, Map<String, DataTypes> columns) throws IOException {
+
+        Map<String, Value> data = Maps.newHashMap();
+
+        Table table = getConnection().getTable(TableName.valueOf(tableName));
+
+        Get get = new Get(Bytes.toBytes(row));
+        Result result = table.get(get);
+
+        return readValues(result, columns, data);
+    }
+
+    private Map<String, Value> readValues(Result result, Map<String, DataTypes> columns, Map<String, Value> addTo) throws IOException {
+
+        columns.forEach((name, type) -> {
+            byte [] value = result.getValue(FAMILY_BYTES, Bytes.toBytes(name));
+            Value val;
+            switch (type) {
+                case INT:       val = Value.of(Bytes.toInt(value));      break;
+                case LONG:      val = Value.of(Bytes.toLong(value));        break;
+                case FLOAT:     val = Value.of(Bytes.toFloat(value));      break;
+                case DOUBLE:    val = Value.of(Bytes.toDouble(value));    break;
+                default:        val = Value.of(new String(value));                        break;
+            }
+            addTo.put(name, val);
+        });
+
+        return addTo;
+    }
+
+    private Map<String, Value> readValues(Result result, Map<String, DataTypes> columns) throws IOException {
+        return readValues(result, columns, Maps.newHashMap());
+    }
+
+    /**
+     * Get a table of values <row, column, value>
+     * @param tableName
+     * @param scan
+     * @param columns
+     * @return
+     * @throws IOException
+     */
+    public HashBasedTable<String, String, Value> read(String tableName, Scan scan, Map<String, DataTypes> columns) throws IOException {
+
+        HashBasedTable<String, String, Value> data = HashBasedTable.create();
+
+        Table table = getConnection().getTable(TableName.valueOf(tableName));
+
+        ResultScanner scanner = table.getScanner(scan);
+
+        scanner.forEach(result -> {
+            try {
+                Map<String, Value> rowValues = readValues(result, columns);
+                rowValues.forEach((key, val) -> {
+                    data.put(new String(result.getRow()), key, val);
+                });
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+
+        return data;
     }
 }

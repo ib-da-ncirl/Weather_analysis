@@ -22,6 +22,10 @@
 
 package ie.ibuttimer.weather.misc;
 
+import org.apache.commons.lang3.StringUtils;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Properties;
 
 /**
@@ -125,6 +129,15 @@ public class JobConfig {
 
     public double getProperty(String key, double defaultValue) {
         return Double.parseDouble(properties.getProperty(key, Double.toString(defaultValue)));
+    }
+
+    public LocalDateTime getProperty(String key, LocalDateTime defaultValue, DateTimeFormatter formatter) {
+        LocalDateTime ldt = defaultValue;
+        String dateTime = properties.getProperty(key, "");
+        if (!StringUtils.isEmpty(dateTime)) {
+            ldt = Utils.getDateTime(dateTime, formatter);
+        }
+        return ldt;
     }
 
     @Override

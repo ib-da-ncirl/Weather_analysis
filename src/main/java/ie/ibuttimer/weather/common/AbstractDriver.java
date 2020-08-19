@@ -25,6 +25,7 @@ package ie.ibuttimer.weather.common;
 import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.IDriver;
 import ie.ibuttimer.weather.misc.JobConfig;
+import ie.ibuttimer.weather.misc.Utils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
@@ -33,6 +34,8 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hbase.thirdparty.com.google.common.collect.Maps;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -60,10 +63,28 @@ public abstract class AbstractDriver implements IDriver {
         return job;
     }
 
-    protected Scan initScan(JobConfig jobCfg) {
-        return new Scan()
+    public enum EnableStartStop{ IGNORE, PROCESS }
+
+    public static Scan initScan(JobConfig jobCfg, EnableStartStop enableStartStop) {
+
+        LocalDateTime start = jobCfg.getProperty(CFG_START_DATETIME, LocalDateTime.MIN, DATETIME_FMT);
+        LocalDateTime end = jobCfg.getProperty(CFG_STOP_DATETIME, LocalDateTime.MIN, DATETIME_FMT);
+        Scan scan = new Scan()
                 .setCaching(jobCfg.getProperty(CFG_SCAN_CACHING, DFLT_SCAN_CACHING))
                 .setCacheBlocks(false);  // don't set to true for MR jobs
+        if (enableStartStop == EnableStartStop.PROCESS) {
+            if (start.isAfter(LocalDateTime.MIN)) {
+                scan.withStartRow(Utils.getRowName(start.toEpochSecond(ZoneOffset.UTC)).getBytes());
+            }
+            if (end.isAfter(LocalDateTime.MIN)) {
+                scan.withStopRow(Utils.getRowName(end.toEpochSecond(ZoneOffset.UTC)).getBytes());
+            }
+        }
+        return scan;
+    }
+
+    public static Scan initScan(JobConfig jobCfg) {
+        return initScan(jobCfg, EnableStartStop.PROCESS);
     }
 
     protected Pair<Integer, String> getRequiredStringProperty(JobConfig jobCfg, String name) {

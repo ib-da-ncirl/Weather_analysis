@@ -27,6 +27,7 @@ import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.JobConfig;
 import ie.ibuttimer.weather.misc.Utils;
 import ie.ibuttimer.weather.sma.SmaDriver;
+import ie.ibuttimer.weather.transform.TransformDriver;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -84,12 +85,14 @@ public class WeatherAnalysis extends Configured implements Tool {
      */
 
     private static final String JOB_ANALYSIS = "analysis";
+    private static final String JOB_TRANSFORM = "transform";
     private static final String JOB_SMA = "sma";
     private static final List<Triple<String, String, String>> jobList;
     private static final String jobListFmt;
     static {
         jobList = new ArrayList<>();
         jobList.add(Triple.of(JOB_ANALYSIS, "perform Analysis", "Analysis Job"));
+        jobList.add(Triple.of(JOB_TRANSFORM, "perform Transformation", "Transform Job"));
         jobList.add(Triple.of(JOB_SMA, "perform Simple Moving Average", "SMA Job"));
 
         OptionalInt width = jobList.stream().map(Triple::getLeft).mapToInt(String::length).max();
@@ -234,6 +237,9 @@ public class WeatherAnalysis extends Configured implements Tool {
                         switch (name) {
                             case JOB_ANALYSIS:
                                 resultCode = AnalysisDriver.of(logger).runJob(config, jobCfg);
+                                break;
+                            case JOB_TRANSFORM:
+                                resultCode = TransformDriver.of(logger).runJob(config, jobCfg);
                                 break;
                             case JOB_SMA:
                                 resultCode = SmaDriver.of(logger).runJob(config, jobCfg);
