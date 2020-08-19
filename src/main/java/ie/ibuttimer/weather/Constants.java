@@ -36,6 +36,8 @@ public class Constants {
     public static final DateTimeFormatter YYYYMMDDHH_FMT = new DateTimeFormatterBuilder().
             appendPattern("yyyyMMddHH").toFormatter();
 
+    public static final String REDUCER_STATS = "reducer.stats";
+
     public static final String DEWPT_COL = "dewpt";
     public static final String IND_RAIN_COL = "ind_rain";
     public static final String IND_TEMP_COL = "ind_temp";

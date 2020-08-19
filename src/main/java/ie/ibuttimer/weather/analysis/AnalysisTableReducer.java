@@ -76,7 +76,7 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
     private Accumulator overall;
 
     @Override
-    protected void setup(Context context) throws IOException, InterruptedException {
+    protected void setup(Context context) {
 
         Configuration conf = context.getConfiguration();
 
@@ -94,8 +94,6 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
 
     @Override
     protected void reduce(CompositeKey key, Iterable<TimeSeriesData> values, Context context) throws IOException, InterruptedException {
-
-        final long[] count = {0};
 
         values.forEach(v -> {
 
@@ -115,7 +113,6 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
                     current_strata = (current_strata + 1) % num_strata;
                 }
             }
-            ++count[0];
         });
 
         // add entry with column name as row id
@@ -157,7 +154,7 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
 
     }
 
-    private class Accumulator {
+    private static class Accumulator {
         private long count;
         private double min;
         private double max;
@@ -196,5 +193,14 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
                 maxTimestamp = timestamp;
             }
         }
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "@" + Integer.toHexString(this.hashCode()) +
+                "{" +
+                "num_strata=" + num_strata +
+                ", strata_width=" + strata_width +
+                '}';
     }
 }

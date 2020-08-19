@@ -82,6 +82,9 @@ public class AnalysisDriver extends AbstractDriver implements IDriver {
                 if (!hbase.tableExists(analysisTable)) {
                     hbase.createTable(analysisTable.getNameAsString(), FAMILY);
                 }
+
+                addStatsToConfig(hbase, jobCfg, analysisTable.getNameAsString(), config);
+
             } finally {
                 if (hbase != null) {
                     hbase.closeConnection();

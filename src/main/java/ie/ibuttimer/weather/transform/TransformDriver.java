@@ -22,13 +22,12 @@
 
 package ie.ibuttimer.weather.transform;
 
-import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import ie.ibuttimer.weather.analysis.AnalysisTableReducer;
 import ie.ibuttimer.weather.common.*;
 import ie.ibuttimer.weather.hbase.Hbase;
-import ie.ibuttimer.weather.misc.*;
+import ie.ibuttimer.weather.misc.AppLogger;
+import ie.ibuttimer.weather.misc.IDriver;
+import ie.ibuttimer.weather.misc.JobConfig;
 import ie.ibuttimer.weather.sma.SmaPartitioner;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
@@ -40,8 +39,6 @@ import java.io.IOException;
 import java.util.Map;
 
 import static ie.ibuttimer.weather.Constants.*;
-import static ie.ibuttimer.weather.analysis.AnalysisTableReducer.MEAN;
-import static ie.ibuttimer.weather.transform.TransformTableReducer.TRANSFORM_MEANS;
 
 public class TransformDriver extends AbstractDriver implements IDriver {
 
@@ -76,18 +73,7 @@ public class TransformDriver extends AbstractDriver implements IDriver {
                 }
 
                 String analysisTable = map.get(CFG_ANALYSIS_TABLE);
-                HashBasedTable<String, String, Value> means = loadMeans(hbase, jobCfg, analysisTable);
-
-                // transform means into 'row,col,mean;row,col,mean;..'
-                StringBuffer sb = new StringBuffer();
-                means.rowKeySet().forEach(row -> {
-                    means.columnKeySet().forEach(col -> {
-                        sb.append(row).append(',')          // row, i.e. variable name
-                                .append(col).append(',')    // col, i.e. 'mean'
-                                .append(means.get(row, col).doubleValue()).append(';'); // value
-                    });
-                });
-                config.set(TRANSFORM_MEANS, sb.toString());
+                addStatsToConfig(hbase, jobCfg, analysisTable, config);
 
             } finally {
                 if (hbase != null) {
@@ -125,9 +111,4 @@ public class TransformDriver extends AbstractDriver implements IDriver {
         return resultCode;
     }
 
-    public HashBasedTable<String, String, Value> loadMeans(Hbase hbase, JobConfig jobCfg, String tableName) throws IOException {
-        Map<String, DataTypes> columns = Maps.newHashMap();
-        columns.put(new String(MEAN), DataTypes.DOUBLE);
-        return hbase.read(tableName, initScan(jobCfg, EnableStartStop.IGNORE), columns);
-    }
 }

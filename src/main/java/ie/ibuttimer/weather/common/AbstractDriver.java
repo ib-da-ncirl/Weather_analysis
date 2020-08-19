@@ -22,25 +22,28 @@
 
 package ie.ibuttimer.weather.common;
 
-import ie.ibuttimer.weather.misc.AppLogger;
-import ie.ibuttimer.weather.misc.IDriver;
-import ie.ibuttimer.weather.misc.JobConfig;
-import ie.ibuttimer.weather.misc.Utils;
+import com.google.common.collect.HashBasedTable;
+import ie.ibuttimer.weather.hbase.Hbase;
+import ie.ibuttimer.weather.misc.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hbase.thirdparty.com.google.common.collect.Maps;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static ie.ibuttimer.weather.Constants.*;
+import static ie.ibuttimer.weather.analysis.AnalysisTableReducer.MEAN;
+import static ie.ibuttimer.weather.analysis.AnalysisTableReducer.VARIANCE;
 
 public abstract class AbstractDriver implements IDriver {
 
@@ -108,6 +111,38 @@ public abstract class AbstractDriver implements IDriver {
             map.put(n, result.getRight());
         });
         return Pair.of(resultCode.get(), map);
+    }
+
+    public HashBasedTable<String, String, Value> loadStats(Hbase hbase, JobConfig jobCfg, String tableName) throws IOException {
+        Map<String, DataTypes> columns = com.google.common.collect.Maps.newHashMap();
+        Arrays.asList(MEAN, VARIANCE).forEach(x -> columns.put(x, DataTypes.DOUBLE));
+        return hbase.read(tableName, initScan(jobCfg, EnableStartStop.IGNORE), columns);
+    }
+
+    public void addStatsToConfig(Hbase hbase, JobConfig jobCfg, String tableName, Configuration config) throws IOException {
+        HashBasedTable<String, String, Value> stats = loadStats(hbase, jobCfg, tableName);
+
+        // transform means into 'row,col,mean;row,col,mean;..'
+        StringBuffer sb = new StringBuffer();
+        stats.rowKeySet().forEach(row -> {
+            stats.columnKeySet().forEach(col -> {
+                sb.append(row).append(',')          // row, i.e. variable name
+                        .append(col).append(',')    // col, i.e. 'mean', 'variance'
+                        .append(stats.get(row, col).doubleValue()).append(';'); // value
+            });
+        });
+        config.set(REDUCER_STATS, sb.toString());
+    }
+
+    public static HashBasedTable<String, String, Double> decodeStats(Configuration conf) {
+        HashBasedTable<String, String, Double> stats = HashBasedTable.create();
+
+        String meanCfg = conf.get(REDUCER_STATS, "");
+        Arrays.asList(meanCfg.split(";")).forEach(entry -> {
+            String[] cell = entry.split(",");
+            stats.put(cell[0], cell[1], Double.parseDouble(cell[2]));
+        });
+        return stats;
     }
 
 }
