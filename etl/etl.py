@@ -158,7 +158,9 @@ def download_file(uri: str, save_to: str = None):
     if response.ok:
         content = response.content
         if save_to is not None:
-            open(save_to, 'wb').write(content)
+            verify_path(os.path.dirname(save_to), typ='dir', create_dir=True)
+            with open(save_to, 'wb') as fout:
+                fout.write(content)
         result = RequestResult(HTTPStatus.OK, content)
     else:
         try:
@@ -231,12 +233,16 @@ def get_filepath_or_buffer(uri: Union[str, list], end_on_err=True) -> \
 
 def get_file_path(uri):
     """
-    Get the filepath from uri for pandas.read_csv(). It expected full paths such as 'file://localhost/path/to/csv' but
+    Get the filepath from uri for pandas.read_csv(). It expects full paths such as 'file://localhost/path/to/csv' but
     this allows relative paths as well 'file://../path/to/csv'
+    Note: don't forget to include root folder if specifying absolute path, e.g. 'file:///absolute/path'
     :param uri:
     :return:
     """
-    return uri if uri.startswith(f'{FILE_URI}localhost') else uri[len(FILE_URI):]
+    filepath = uri[len(FILE_URI):]
+    if filepath.startswith(os.pardir) or filepath.startswith(os.curdir):
+        uri = f"{FILE_URI}{os.path.abspath(filepath)}"
+    return uri
 
 
 DfFilter = namedtuple('DfFilter', ['column', 'op', 'value'])
@@ -827,6 +833,9 @@ def save_to_hbase(data: pd.DataFrame, station: int, row_template: dict, args: di
     :param close: close connection when done flag
     :return:
     """
+    if connection is not None and not connection.transport.is_open():
+        connection.close()
+        connection = None
     if connection is None:
         connection = connection_hbase(args)
 
