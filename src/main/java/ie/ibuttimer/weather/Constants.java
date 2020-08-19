@@ -161,6 +161,11 @@ public class Constants {
     public static final String CFG_START_DATETIME = "start_datetime";          // filter start date/time
     public static final String CFG_STOP_DATETIME = "stop_datetime";           // filter end date/time
 
+    public static final String CFG_NUM_STRATA = "num_strata";                   // number of strata
+    public static final int DFLT_NUM_STRATA = 1;
+    public static final String CFG_STRATA_WIDTH = "strata_width";                   // width of each strata
+    public static final int DFLT_STRATA_WIDTH = 1;
+
 
 
     private Constants() {
