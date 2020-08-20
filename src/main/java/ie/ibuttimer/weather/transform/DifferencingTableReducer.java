@@ -23,6 +23,7 @@
 package ie.ibuttimer.weather.transform;
 
 import ie.ibuttimer.weather.analysis.StatsAccumulator;
+import ie.ibuttimer.weather.common.AbstractTableReducer;
 import ie.ibuttimer.weather.common.CompositeKey;
 import ie.ibuttimer.weather.common.TimeSeriesData;
 import ie.ibuttimer.weather.misc.AppLogger;
@@ -30,7 +31,6 @@ import ie.ibuttimer.weather.misc.Utils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.mapreduce.TableReducer;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.Text;
 import org.apache.log4j.Logger;
@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static ie.ibuttimer.weather.Constants.*;
+import static ie.ibuttimer.weather.analysis.AnalysisTableReducer.*;
 import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
 
 /**
@@ -48,7 +49,7 @@ import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
  *
  * - Calculates the auto correlation
  */
-public class DifferencingTableReducer extends TableReducer<CompositeKey, TimeSeriesData, Text> {
+public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey, TimeSeriesData, Text> {
 
     // public abstract class TableReducer<KEYIN, VALUEIN, KEYOUT> extends Reducer<KEYIN, VALUEIN, KEYOUT, Mutation>
 
@@ -131,11 +132,7 @@ public class DifferencingTableReducer extends TableReducer<CompositeKey, TimeSer
                     });
             });
 
-            try {
-                context.write(null, put);
-            } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
-            }
+            write(context, put);
 
             ++stepCount[0];
         });
@@ -146,6 +143,18 @@ public class DifferencingTableReducer extends TableReducer<CompositeKey, TimeSer
                             name, a.getTag(), a.getCount(), a.getMin(), a.getMax(),
                             a.getMean(), a.getVariance(), a.getSetDev(),
                             a.getMinTimestamp(DATETIME_FMT), a.getMaxTimestamp(DATETIME_FMT)));
+
+            Put put = new Put(Bytes.toBytes(a.getTag()))
+                    .addColumn(FAMILY_BYTES, COUNT.getBytes(), storeValueAsString(a.getCount()))
+                    .addColumn(FAMILY_BYTES, MIN.getBytes(), storeValueAsString(a.getMin()))
+                    .addColumn(FAMILY_BYTES, MAX.getBytes(), storeValueAsString(a.getMax()))
+                    .addColumn(FAMILY_BYTES, MEAN.getBytes(), storeValueAsString(a.getMean()))
+                    .addColumn(FAMILY_BYTES, VARIANCE.getBytes(), storeValueAsString(a.getVariance()))
+                    .addColumn(FAMILY_BYTES, STD_DEV.getBytes(), storeValueAsString(a.getSetDev()))
+                    .addColumn(FAMILY_BYTES, MIN_TS.getBytes(), storeValueAsString(a.getMinTimestamp(DATETIME_FMT)))
+                    .addColumn(FAMILY_BYTES, MAX_TS.getBytes(), storeValueAsString(a.getMaxTimestamp(DATETIME_FMT)));
+
+            write(context, put);
         });
 
     }
