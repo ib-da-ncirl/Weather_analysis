@@ -36,12 +36,6 @@ import java.util.regex.Pattern;
 
 public class TypeMap {
 
-    public static final String INT_TYPE = "int";
-    public static final String LONG_TYPE = "long";
-    public static final String FLOAT_TYPE = "flt";
-    public static final String DOUBLE_TYPE = "dbl";
-    public static final String STRING_TYPE = "str";
-
     private Pattern pattern = Pattern.compile("^(\\w{3,})\\((.+)\\)$");
 
     private Map<String, DataTypes> map;
@@ -125,6 +119,11 @@ public class TypeMap {
         }
         return result;
     }
+
+    public static String encode(DataTypes type, String name) {
+        return type.shortId() + "(" + name + ")";
+    }
+
 
     @Override
     public String toString() {

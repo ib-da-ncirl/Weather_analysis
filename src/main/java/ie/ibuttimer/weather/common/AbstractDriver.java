@@ -42,8 +42,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static ie.ibuttimer.weather.Constants.*;
-import static ie.ibuttimer.weather.analysis.AnalysisTableReducer.MEAN;
-import static ie.ibuttimer.weather.analysis.AnalysisTableReducer.VARIANCE;
 
 public abstract class AbstractDriver implements IDriver {
 
@@ -100,7 +98,7 @@ public abstract class AbstractDriver implements IDriver {
         return Pair.of(resultCode, property);
     }
 
-    protected Pair<Integer, Map<String, String>> getRequiredStringProperies(JobConfig jobCfg, List<String> names) {
+    protected Pair<Integer, Map<String, String>> getRequiredStringProperties(JobConfig jobCfg, List<String> names) {
         AtomicInteger resultCode = new AtomicInteger(STATUS_SUCCESS);
         Map<String, String> map = Maps.newHashMap();
         names.forEach(n -> {
@@ -113,21 +111,33 @@ public abstract class AbstractDriver implements IDriver {
         return Pair.of(resultCode.get(), map);
     }
 
-    public HashBasedTable<String, String, Value> loadStats(Hbase hbase, JobConfig jobCfg, String tableName) throws IOException {
-        Map<String, DataTypes> columns = com.google.common.collect.Maps.newHashMap();
-        Arrays.asList(MEAN, VARIANCE).forEach(x -> columns.put(x, DataTypes.STRING));   // analysis table values are stored as strings
-        return hbase.read(tableName, initScan(jobCfg, EnableStartStop.IGNORE), columns);
+    public HashBasedTable<String, String, Value> loadStats(Hbase hbase, JobConfig jobCfg, String tableName,
+                                                           String matchRegex, List<String> stats) throws IOException {
+        Map<String, DataTypes> columns = Maps.newHashMap();
+        stats.forEach(x -> columns.put(x, DataTypes.STRING));   // analysis table values are stored as strings
+        return hbase.read(tableName, initScan(jobCfg, EnableStartStop.IGNORE), columns, matchRegex);
     }
 
-    public void addStatsToConfig(Hbase hbase, JobConfig jobCfg, String tableName, Configuration config) throws IOException {
-        HashBasedTable<String, String, Value> stats = loadStats(hbase, jobCfg, tableName);
+    public HashBasedTable<String, String, Value> loadStats(Hbase hbase, JobConfig jobCfg, String tableName, List<String> stats) throws IOException {
+        return loadStats(hbase, jobCfg, tableName, "", stats);
+    }
 
+    public void addStatsToConfig(Hbase hbase, JobConfig jobCfg, String tableName, Configuration config, List<String> stats) throws IOException {
+        HashBasedTable<String, String, Value> statsTable = loadStats(hbase, jobCfg, tableName, stats);
+        addStatsToConfig(statsTable, config);
+    }
+
+    public void addStatsToConfig(HashBasedTable<String, String, Value> stats, Configuration config) {
         // transform means into 'row,col,mean;row,col,mean;..'
         StringBuffer sb = new StringBuffer();
         stats.rowKeySet().forEach(row -> {
             stats.columnKeySet().forEach(col -> {
-                sb.append(row).append(',')          // row, i.e. variable name
-                        .append(col).append(',')    // col, i.e. 'mean', 'variance'
+                int subStr = 0;
+                if (row.matches(STATS_ROW_MARK_REGEX)) {
+                    subStr = STATS_ROW_MARK.length();
+                }
+                sb.append(row.substring(subStr)).append(',')    // row, i.e. variable name
+                        .append(col).append(',')                // col, i.e. 'mean', 'variance'
                         .append(stats.get(row, col).stringValue()).append(';'); // value
             });
         });
@@ -146,11 +156,33 @@ public abstract class AbstractDriver implements IDriver {
     }
 
 
+    protected Hbase hbaseConnection(JobConfig jobCfg) {
+        return Hbase.of(jobCfg.getProperty(CFG_HBASE_RESOURCE, DFLT_HBASE_RESOURCE));
+    }
+
     protected Hbase createTable(JobConfig jobCfg, String tableName) throws IOException {
-        Hbase hbase = hbase = Hbase.of(jobCfg.getProperty(CFG_HBASE_RESOURCE, DFLT_HBASE_RESOURCE));
+        Hbase hbase = hbaseConnection(jobCfg);
         if (!hbase.tableExists(TableName.valueOf(tableName))) {
             hbase.createTable(tableName, FAMILY);
         }
         return hbase;
     }
+
+    public int startJob(Job job, JobConfig jobCfg) throws IOException, ClassNotFoundException, InterruptedException {
+
+        int resultCode;
+
+        job.setPartitionerClass(CompositeKeyPartitioner.class);
+        job.setGroupingComparatorClass(CompositeKeyGrouping.class); // comparator that controls which keys are grouped together for a single call to Reducer
+        job.setSortComparatorClass(CompositeKeyComparator.class);   // comparator that controls how the keys are sorted before they are passed to the Reducer
+
+        if (jobCfg.isWait()) {
+            resultCode = job.waitForCompletion(jobCfg.isVerbose()) ? STATUS_SUCCESS : STATUS_FAIL;
+        } else {
+            job.submit();
+            resultCode = STATUS_RUNNING;
+        }
+        return resultCode;
+    }
+
 }

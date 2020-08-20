@@ -50,15 +50,6 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
 
     private static final AppLogger logger = AppLogger.of(Logger.getLogger("AnalysisTableReducer"));
 
-    public static final String COUNT = "count";
-    public static final String MIN = "min";
-    public static final String MAX = "max";
-    public static final String MEAN = "mean";
-    public static final String VARIANCE = "variance";
-    public static final String STD_DEV = "std_dev";
-    public static final String MIN_TS = "min_ts";
-    public static final String MAX_TS = "max_ts";
-
     public static byte[] columnNameBytes(String name, int index) {
         String colName = name;
         if (index >= 0) {

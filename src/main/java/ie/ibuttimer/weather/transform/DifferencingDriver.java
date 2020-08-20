@@ -28,7 +28,6 @@ import ie.ibuttimer.weather.hbase.Hbase;
 import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.IDriver;
 import ie.ibuttimer.weather.misc.JobConfig;
-import ie.ibuttimer.weather.sma.SmaPartitioner;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
@@ -53,7 +52,7 @@ public class DifferencingDriver extends AbstractDriver implements IDriver {
     public int runJob(Configuration config, JobConfig jobCfg) throws IOException, ClassNotFoundException, InterruptedException {
 
         Pair<Integer, Map<String, String>> properties =
-                getRequiredStringProperies(jobCfg,
+                getRequiredStringProperties(jobCfg,
                         Lists.newArrayList(CFG_DIFFERENCING_IN_TABLE, CFG_DIFFERENCING_OUT_TABLE));
 
         int resultCode = properties.getKey();
@@ -89,16 +88,7 @@ public class DifferencingDriver extends AbstractDriver implements IDriver {
                     DifferencingTableReducer.class,   // reducer class
                     job);
 
-            job.setPartitionerClass(SmaPartitioner.class);
-            job.setGroupingComparatorClass(CompositeKeyGrouping.class); // comparator that controls which keys are grouped together for a single call to Reducer
-            job.setSortComparatorClass(CompositeKeyComparator.class);   // comparator that controls how the keys are sorted before they are passed to the Reducer
-
-            if (jobCfg.isWait()) {
-                resultCode = job.waitForCompletion(jobCfg.isVerbose()) ? STATUS_SUCCESS : STATUS_FAIL;
-            } else {
-                job.submit();
-                resultCode = STATUS_RUNNING;
-            }
+            resultCode = startJob(job, jobCfg);
         }
         return resultCode;
     }

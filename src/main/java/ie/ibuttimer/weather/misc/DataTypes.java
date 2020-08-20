@@ -22,25 +22,55 @@
 
 package ie.ibuttimer.weather.misc;
 
+import java.util.Arrays;
+import java.util.Map;
+
 public enum DataTypes {
     UNKNOWN, STRING, INT, LONG, FLOAT, DOUBLE;
 
     public static DataTypes of(String type) {
-        DataTypes dType;
-        if (type.equalsIgnoreCase("int") || type.equalsIgnoreCase("integer")) {
-            dType = INT;
-        } else if (type.equalsIgnoreCase("lng") || type.equalsIgnoreCase("long")) {
-            dType = LONG;
-        } else if (type.equalsIgnoreCase("flt") || type.equalsIgnoreCase("float")) {
-            dType = FLOAT;
-        } else if (type.equalsIgnoreCase("dbl") || type.equalsIgnoreCase("double")) {
-            dType = DOUBLE;
-        } else if (type.equalsIgnoreCase("str") || type.equalsIgnoreCase("string")) {
-            dType = STRING;
-        } else {
-            dType = UNKNOWN;
+        DataTypes dType = UNKNOWN;
+        for (DataTypes iType : values() ) {
+            if (type.equals(shortId(iType)) || type.equals(longId(iType))) {
+                dType = iType;
+                break;
+            }
+
         }
         return dType;
     }
 
+    public String shortId() {
+        return shortId(this);
+    }
+
+    public String longId() {
+        return longId(this);
+    }
+
+    public static String shortId(DataTypes type) {
+        String id;
+        switch (type) {
+            case INT:       id = "int";     break;
+            case LONG:      id = "lng";     break;
+            case FLOAT:     id = "flt";     break;
+            case DOUBLE:    id = "dbl";     break;
+            case STRING:    id = "str";     break;
+            default:        id = "";        break;
+        }
+        return id;
+    }
+
+    public static String longId(DataTypes type) {
+        String id;
+        switch (type) {
+            case INT:       id = "integer"; break;
+            case LONG:      id = "long";    break;
+            case FLOAT:     id = "float";   break;
+            case DOUBLE:    id = "double";  break;
+            case STRING:    id = "string";  break;
+            default:        id = "";        break;
+        }
+        return id;
+    }
 }

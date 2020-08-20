@@ -42,7 +42,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static ie.ibuttimer.weather.Constants.*;
-import static ie.ibuttimer.weather.analysis.AnalysisTableReducer.MEAN;
+import static ie.ibuttimer.weather.Constants.MEAN;
 import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
 
 /**
@@ -109,7 +109,11 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
     protected void reduce(CompositeKey key, Iterable<TimeSeriesData> values, Context context) throws IOException, InterruptedException {
 
         double mean = stats.get(key.getMainKey(), MEAN);
-        final boolean[] first = {true};
+
+        accumulators.forEach(a -> {
+            a.tag = getTransformColumnName(key, (int)a.getId());
+        });
+        byte[] actualColumn = getTransformColumnName(key, 0).getBytes();
 
         values.forEach(v -> {
 
@@ -122,14 +126,7 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
             String row = Utils.getRowName(key.getSubKey());
             Put put = new Put(Bytes.toBytes(row))
                     // zero transformed value
-                    .addColumn(FAMILY_BYTES, key.getMainKey().getBytes(), storeValueAsString(zeroTransform));
-
-            if (first[0]) {
-                accumulators.forEach(a -> {
-                    a.tag = key.getMainKey() + "_lag_" + a.getId() + "_result";
-                });
-                first[0] = false;
-            }
+                    .addColumn(FAMILY_BYTES, actualColumn, storeValueAsString(zeroTransform));
 
             accumulators.forEach(a -> {
                 a.meanDist += Math.pow(zeroTransform, 2);   // sq(y - y_bar)
@@ -137,8 +134,7 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
                         .ifPresent(lv -> {
                             // normalised lag value
                             double zeroTransformLag = lv - mean;
-                            put.addColumn(FAMILY_BYTES, (key.getMainKey() + "_lag_" + a.getId()).getBytes(),
-                                    storeValueAsString(zeroTransformLag));
+                            put.addColumn(FAMILY_BYTES, a.tag.getBytes(), storeValueAsString(zeroTransformLag));
 
                             a.diffProd += (zeroTransform * zeroTransformLag);
                         });
@@ -159,14 +155,23 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
             logger.logger().info(String.format("XXX %d XXX  autocovariance %.3f   autocorrelation %.3f",
                     a.getId(), autocovariance, autocorrelation));
 
-            Put put = new Put(Bytes.toBytes(a.tag))
-                    .addColumn(FAMILY_BYTES, "autocovariance".getBytes(), storeValueAsString(autocovariance))
-                    .addColumn(FAMILY_BYTES, "autocorrelation".getBytes(), storeValueAsString(autocorrelation));
+            Put put = new Put(Bytes.toBytes(STATS_ROW_MARK + a.tag))
+                    .addColumn(FAMILY_BYTES, AUTOCOVARIANCE.getBytes(), storeValueAsString(autocovariance))
+                    .addColumn(FAMILY_BYTES, AUTOCORRELATION.getBytes(), storeValueAsString(autocorrelation));
 
             write(context, put);
 
         });
     }
+
+    public static String getTransformRowName(CompositeKey key, int id) {
+        return STATS_ROW_MARK + getTransformColumnName(key, id);
+    }
+
+    public static String getTransformColumnName(CompositeKey key, int id) {
+        return key.getMainKey() + "_lag_" + id;
+    }
+
 
     @Override
     public String toString() {

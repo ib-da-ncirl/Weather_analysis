@@ -47,6 +47,17 @@ public class Constants {
     public static final String VAPPR_COL = "vappr";
     public static final String WETB_COL = "wetb";
 
+    public static final String COUNT = "count";
+    public static final String MIN = "min";
+    public static final String MAX = "max";
+    public static final String MEAN = "mean";
+    public static final String VARIANCE = "variance";
+    public static final String STD_DEV = "std_dev";
+    public static final String MIN_TS = "min_ts";
+    public static final String MAX_TS = "max_ts";
+    public static final String AUTOCOVARIANCE = "autocovariance";
+    public static final String AUTOCORRELATION = "autocorrelation";
+
     public static String stationColumn(String column, int station) {
         return column + "_" + Integer.toString(station);
     }
@@ -140,6 +151,10 @@ public class Constants {
     public static final String CFG_TRANSFORM_OUT_TABLE = "transform_out_table";
     public static final String CFG_DIFFERENCING_IN_TABLE = "differencing_in_table";
     public static final String CFG_DIFFERENCING_OUT_TABLE = "differencing_out_table";
+    public static final String CFG_ARIMA_IN_TABLE = "arima_in_table";
+    public static final String CFG_ARIMA_DIFFERENCING_TABLE = "arima_differencing_table";
+    public static final String CFG_ARIMA_LAGS_TABLE = "arima_lags_table";
+    public static final String CFG_ARIMA_OUT_TABLE = "arima_out_table";
 
     public static final String CFG_SMA_IN_TABLE = "sma_in_table";
 
@@ -175,7 +190,14 @@ public class Constants {
     public static final String CFG_STRATA_WIDTH = "strata_width";                   // width of each strata
     public static final int DFLT_STRATA_WIDTH = 1;
 
+    public static final String CFG_ARIMA_P = "arima_p";                   // number of preceding (“lagged”) values
+    public static final String CFG_ARIMA_D = "arima_d";                   // number of times that the data have to be “differenced” to produce a stationary signal
+    public static final String CFG_ARIMA_Q = "arima_p";                   // number of preceding/lagged values for the error term
+    public static final String CFG_ARIMA_C = "arima_c";                   // constant term
+    public static final String CFG_ARIMA_E = "arima_e";                   // error term
 
+    public static final String STATS_ROW_MARK = "#";
+    public static final String STATS_ROW_MARK_REGEX = "^"+STATS_ROW_MARK+".*";
 
     private Constants() {
         // can't instantiate class

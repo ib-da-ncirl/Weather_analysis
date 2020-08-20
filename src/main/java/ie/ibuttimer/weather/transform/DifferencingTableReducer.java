@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static ie.ibuttimer.weather.Constants.*;
-import static ie.ibuttimer.weather.analysis.AnalysisTableReducer.*;
 import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
 
 /**
@@ -57,7 +56,7 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
 
     private int differencing;
     private int seasonal;
-    private List<Cache> cache;
+    private List<Cache> cacheList;
     private StatsAccumulator[] statsAccumulators;
     private String diffTypeName;
 
@@ -86,13 +85,13 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
             }
         }
         if (differencing <= 0 && seasonal <= 0) {
-            cache = Arrays.asList();
+            cacheList = Arrays.asList();
             statsAccumulators = new StatsAccumulator[0];
         } else {
-            cache = Arrays.asList(new Cache[differencing]);
+            cacheList = Arrays.asList(new Cache[differencing]);
             statsAccumulators = new StatsAccumulator[differencing];
             for (int i = 0; i < differencing; ++i) {
-                cache.set(i, new Cache(i * seasonal, seasonal));
+                cacheList.set(i, new Cache(i * seasonal, seasonal));
                 statsAccumulators[i] = new StatsAccumulator();
             }
         }
@@ -105,6 +104,15 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
 
         String name = key.getMainKey();
 
+        cacheList.forEach(c -> {
+            // id is trigger + 1 for differencing or cache len for seasonal
+            int id = c.prev.length == 1 ? (c.trigger + 1) : c.prev.length;
+            c.tag = getDifferenceColumnName(key, diffTypeName, id);
+
+            statsAccumulators[c.trigger].setTag(c.tag);
+        });
+        byte[] actualColumn = getDifferenceColumnName(key, diffTypeName, 0).getBytes();
+
         values.forEach(v -> {
 
             // CompositeKey(column name, timestamp), TimeSeriesData(timestamp, float value)
@@ -114,20 +122,16 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
 
             String row = Utils.getRowName(key.getSubKey());
             Put put = new Put(Bytes.toBytes(row))
-                    // zero transformed value
-                    .addColumn(FAMILY_BYTES, key.getMainKey().getBytes(), storeValueAsString(value));
+                    // actual value
+                    .addColumn(FAMILY_BYTES, actualColumn, storeValueAsString(value));
 
             final double[] diffVal = new double[] {value};
-            cache.forEach(c -> {
+            cacheList.forEach(c -> {
                 c.addValue(stepCount[0], diffVal[0])
                     .ifPresent(d -> {
-                        // id is trigger + 1 for differencing or cache len for seasonal
-                        int id = c.prev.length == 1 ? (c.trigger + 1) : c.prev.length;
-                        String tag = key.getMainKey() + "_" + diffTypeName + "_" + id;
-                        put.addColumn(FAMILY_BYTES, tag.getBytes(), storeValueAsString(d));
+                        put.addColumn(FAMILY_BYTES, c.tag.getBytes(), storeValueAsString(d));
                         diffVal[0] = d;
 
-                        statsAccumulators[c.trigger].setTag(tag);
                         statsAccumulators[c.trigger].addValue(d, timestamp);
                     });
             });
@@ -144,7 +148,8 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
                             a.getMean(), a.getVariance(), a.getSetDev(),
                             a.getMinTimestamp(DATETIME_FMT), a.getMaxTimestamp(DATETIME_FMT)));
 
-            Put put = new Put(Bytes.toBytes(a.getTag()))
+            // mark stats rows with STATS_ROW_MARK
+            Put put = new Put(Bytes.toBytes(STATS_ROW_MARK + a.getTag()))
                     .addColumn(FAMILY_BYTES, COUNT.getBytes(), storeValueAsString(a.getCount()))
                     .addColumn(FAMILY_BYTES, MIN.getBytes(), storeValueAsString(a.getMin()))
                     .addColumn(FAMILY_BYTES, MAX.getBytes(), storeValueAsString(a.getMax()))
@@ -157,6 +162,14 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
             write(context, put);
         });
 
+    }
+
+    public static String getDifferenceRowName(CompositeKey key, String diffType, int id) {
+        return STATS_ROW_MARK + getDifferenceColumnName(key, diffType, id);
+    }
+
+    public static String getDifferenceColumnName(CompositeKey key, String diffType, int id) {
+        return key.getMainKey() + "_" + diffType + "_" + id;
     }
 
     @Override
@@ -173,6 +186,7 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
         int saveIdx;
         int readIdx;
         boolean open;
+        String tag;
 
         public Cache(int trigger, int depth) {
             this.trigger = trigger;
@@ -180,6 +194,7 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
             this.saveIdx = -1;
             this.readIdx = 0;
             this.open = false;
+            this.tag = "";
         }
 
         int next_idx() {

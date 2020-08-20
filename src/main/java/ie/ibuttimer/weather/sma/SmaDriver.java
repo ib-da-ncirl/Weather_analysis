@@ -100,16 +100,7 @@ public class SmaDriver extends AbstractDriver implements IDriver {
             }
 
             if (resultCode == STATUS_SUCCESS) {
-                job.setPartitionerClass(SmaPartitioner.class);
-                job.setGroupingComparatorClass(CompositeKeyGrouping.class); // comparator that controls which keys are grouped together for a single call to Reducer
-                job.setSortComparatorClass(CompositeKeyComparator.class);   // comparator that controls how the keys are sorted before they are passed to the Reducer
-
-                if (jobCfg.isWait()) {
-                    resultCode = job.waitForCompletion(jobCfg.isVerbose()) ? STATUS_SUCCESS : STATUS_FAIL;
-                } else {
-                    job.submit();
-                    resultCode = STATUS_RUNNING;
-                }
+                resultCode = startJob(job, jobCfg);
             }
         }
 

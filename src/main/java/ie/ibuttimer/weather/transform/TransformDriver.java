@@ -28,22 +28,24 @@ import ie.ibuttimer.weather.hbase.Hbase;
 import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.IDriver;
 import ie.ibuttimer.weather.misc.JobConfig;
-import ie.ibuttimer.weather.sma.SmaPartitioner;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.mapreduce.Job;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 import static ie.ibuttimer.weather.Constants.*;
 
 public class TransformDriver extends AbstractDriver implements IDriver {
 
+    private boolean addStats;
+
     protected TransformDriver(AppLogger logger) {
         super(logger);
+        this.addStats = true;
     }
 
     public static TransformDriver of(AppLogger logger) {
@@ -54,7 +56,7 @@ public class TransformDriver extends AbstractDriver implements IDriver {
     public int runJob(Configuration config, JobConfig jobCfg) throws IOException, ClassNotFoundException, InterruptedException {
 
         Pair<Integer, Map<String, String>> properties =
-                getRequiredStringProperies(jobCfg,
+                getRequiredStringProperties(jobCfg,
                         Lists.newArrayList(CFG_TRANSFORM_IN_TABLE, CFG_TRANSFORM_STATS_TABLE, CFG_TRANSFORM_OUT_TABLE));
 
         int resultCode = properties.getKey();
@@ -64,16 +66,16 @@ public class TransformDriver extends AbstractDriver implements IDriver {
             Map<String, String> map = properties.getRight();
 
             // create output table if necessary
-            TableName transformTable = TableName.valueOf(map.get(CFG_TRANSFORM_OUT_TABLE));
+            String transformTable = map.get(CFG_TRANSFORM_OUT_TABLE);
             Hbase hbase = null;
             try {
-                hbase = Hbase.of(jobCfg.getProperty(CFG_HBASE_RESOURCE, DFLT_HBASE_RESOURCE));
-                if (!hbase.tableExists(transformTable)) {
-                    hbase.createTable(transformTable.getNameAsString(), FAMILY);
-                }
+                hbase = createTable(jobCfg, transformTable);
 
-                String statsTable = map.get(CFG_TRANSFORM_STATS_TABLE);
-                addStatsToConfig(hbase, jobCfg, statsTable, config);
+                if (addStats) {
+                    // stats may already be added if job triggered as part of chain
+                    String statsTable = map.get(CFG_TRANSFORM_STATS_TABLE);
+                    addStatsToConfig(hbase, jobCfg, statsTable, config, Arrays.asList(MEAN, VARIANCE));
+                }
 
             } finally {
                 if (hbase != null) {
@@ -93,22 +95,17 @@ public class TransformDriver extends AbstractDriver implements IDriver {
                     job);
 
             TableMapReduceUtil.initTableReducerJob(
-                    transformTable.getNameAsString(),   // output table
+                    transformTable,                // output table
                     TransformTableReducer.class,   // reducer class
                     job);
 
-            job.setPartitionerClass(SmaPartitioner.class);
-            job.setGroupingComparatorClass(CompositeKeyGrouping.class); // comparator that controls which keys are grouped together for a single call to Reducer
-            job.setSortComparatorClass(CompositeKeyComparator.class);   // comparator that controls how the keys are sorted before they are passed to the Reducer
-
-            if (jobCfg.isWait()) {
-                resultCode = job.waitForCompletion(jobCfg.isVerbose()) ? STATUS_SUCCESS : STATUS_FAIL;
-            } else {
-                job.submit();
-                resultCode = STATUS_RUNNING;
-            }
+            resultCode = startJob(job, jobCfg);
         }
         return resultCode;
     }
 
+    public TransformDriver setAddStats(boolean addStats) {
+        this.addStats = addStats;
+        return this;
+    }
 }

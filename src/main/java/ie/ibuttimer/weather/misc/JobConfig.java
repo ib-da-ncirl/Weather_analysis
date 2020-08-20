@@ -131,6 +131,26 @@ public class JobConfig {
         return Double.parseDouble(properties.getProperty(key, Double.toString(defaultValue)));
     }
 
+    public void setProperty(String key, String value) {
+        properties.setProperty(key, value);
+    }
+
+    public void setProperty(String key, int value) {
+        setProperty(key, Integer.toString(value));
+    }
+
+    public void setProperty(String key, long value) {
+        setProperty(key, Long.toString(value));
+    }
+
+    public void setProperty(String key, float value) {
+        setProperty(key, Float.toString(value));
+    }
+
+    public void setProperty(String key, double value) {
+        setProperty(key, Double.toString(value));
+    }
+
     public LocalDateTime getProperty(String key, LocalDateTime defaultValue, DateTimeFormatter formatter) {
         LocalDateTime ldt = defaultValue;
         String dateTime = properties.getProperty(key, "");

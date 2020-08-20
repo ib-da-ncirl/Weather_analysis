@@ -24,6 +24,7 @@ package ie.ibuttimer.weather;
 
 import com.google.common.collect.Lists;
 import ie.ibuttimer.weather.analysis.AnalysisDriver;
+import ie.ibuttimer.weather.arima.ArimaDriver;
 import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.JobConfig;
 import ie.ibuttimer.weather.misc.Utils;
@@ -93,6 +94,7 @@ public class WeatherAnalysis extends Configured implements Tool {
     private static final String JOB_TRANSFORM = "transform";
     private static final String JOB_DIFFERENCING = "difference";
     private static final String JOB_SMA = "sma";
+    private static final String JOB_ARIMA = "arima";
     private static final List<Triple<String, String, String>> jobList;
     private static final String jobListFmt;
     static {
@@ -101,6 +103,7 @@ public class WeatherAnalysis extends Configured implements Tool {
         jobList.add(Triple.of(JOB_TRANSFORM, "perform Transformation", "Transform Job"));
         jobList.add(Triple.of(JOB_DIFFERENCING, "perform Differencing", "Differencing Job"));
         jobList.add(Triple.of(JOB_SMA, "perform Simple Moving Average", "SMA Job"));
+        jobList.add(Triple.of(JOB_ARIMA, "perform ARIMA", "ARIMA Job"));
 
         OptionalInt width = jobList.stream().map(Triple::getLeft).mapToInt(String::length).max();
         StringBuffer sb = new StringBuffer("  %");
@@ -270,9 +273,11 @@ public class WeatherAnalysis extends Configured implements Tool {
                             case JOB_SMA:
                                 resultCode = SmaDriver.of(logger).runJob(config, jobCfg);
                                 break;
+                            case JOB_ARIMA:
+                                resultCode = ArimaDriver.of(logger).runJob(config, jobCfg);
+                                break;
                             default:
-                                logger.warn(
-                                    String.format("Unknown job: %s%n%n", cmd.getOptionValue(OPT_JOB)));
+                                logger.warn(String.format("Unknown job: %s%n%n", cmd.getOptionValue(OPT_JOB)));
                                 jobList();
                                 resultCode = STATUS_CONFIG_ERROR;
                         }

@@ -23,14 +23,11 @@
 package ie.ibuttimer.weather.analysis;
 
 import com.google.common.collect.Lists;
-import ie.ibuttimer.weather.Constants;
 import ie.ibuttimer.weather.common.*;
 import ie.ibuttimer.weather.hbase.Hbase;
 import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.IDriver;
 import ie.ibuttimer.weather.misc.JobConfig;
-import ie.ibuttimer.weather.sma.SmaPartitioner;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.TableName;
@@ -38,6 +35,7 @@ import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.mapreduce.Job;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 import static ie.ibuttimer.weather.Constants.*;
@@ -56,7 +54,7 @@ public class AnalysisDriver extends AbstractDriver implements IDriver {
     public int runJob(Configuration config, JobConfig jobCfg) throws IOException, ClassNotFoundException, InterruptedException {
 
         Pair<Integer, Map<String, String>> properties =
-                getRequiredStringProperies(jobCfg, Lists.newArrayList(CFG_ANALYSIS_IN_TABLE, CFG_ANALYSIS_OUT_TABLE));
+                getRequiredStringProperties(jobCfg, Lists.newArrayList(CFG_ANALYSIS_IN_TABLE, CFG_ANALYSIS_OUT_TABLE));
 
         int resultCode = properties.getKey();
 
@@ -83,7 +81,7 @@ public class AnalysisDriver extends AbstractDriver implements IDriver {
                     hbase.createTable(analysisTable.getNameAsString(), FAMILY);
                 }
 
-                addStatsToConfig(hbase, jobCfg, analysisTable.getNameAsString(), config);
+                addStatsToConfig(hbase, jobCfg, analysisTable.getNameAsString(), config, Arrays.asList(MEAN, VARIANCE));
 
             } finally {
                 if (hbase != null) {
@@ -96,16 +94,7 @@ public class AnalysisDriver extends AbstractDriver implements IDriver {
                     AnalysisTableReducer.class,   // reducer class
                     job);
 
-            job.setPartitionerClass(SmaPartitioner.class);
-            job.setGroupingComparatorClass(CompositeKeyGrouping.class); // comparator that controls which keys are grouped together for a single call to Reducer
-            job.setSortComparatorClass(CompositeKeyComparator.class);   // comparator that controls how the keys are sorted before they are passed to the Reducer
-
-            if (jobCfg.isWait()) {
-                resultCode = job.waitForCompletion(jobCfg.isVerbose()) ? STATUS_SUCCESS : STATUS_FAIL;
-            } else {
-                job.submit();
-                resultCode = STATUS_RUNNING;
-            }
+            resultCode = startJob(job, jobCfg);
         }
         return resultCode;
     }

@@ -90,6 +90,7 @@ public class CKTSMapper extends TableMapper<CompositeKey, TimeSeriesData> {
     @Override
     protected void map(ImmutableBytesWritable key, Result value, Context context) throws IOException, InterruptedException {
 
+        boolean process = true;
         LocalDateTime dateTime;
         if (value.containsColumn(FAMILY_BYTES, DATE_ATTR)) {
             String val = new String(value.getValue(FAMILY_BYTES, DATE_ATTR));
@@ -97,52 +98,59 @@ public class CKTSMapper extends TableMapper<CompositeKey, TimeSeriesData> {
         } else {
             // get date time from row name
             String val = new String(value.getRow());
-            dateTime = getRowDateTime(val);
+            if (val.matches(STATS_ROW_MARK_REGEX)) {
+                process = false;    // ignore a stats row
+                dateTime = null;
+            } else {
+                dateTime = getRowDateTime(val);
+            }
         }
 
-        value.listCells().stream()
-                .map(x -> ((NoTagsKeyValue) x).toStringMap())
-                .filter(x -> !x.get("qualifier").equals(DATE_COL))
-                .filter(x -> Arrays.stream(columnList).anyMatch(y -> ((String)x.get("qualifier")).matches(y)))
-                .forEach(x -> {
-                    // read the cell value and write it out as
-                    // CompositeKey(column name, timestamp), TimeSeriesData(timestamp, float value)
-                    String columnName = (String)x.get("qualifier");
-                    long timestamp = dateTime.toEpochSecond(ZoneOffset.UTC);
+        if (process) {
+            value.listCells().stream()
+                    .map(x -> ((NoTagsKeyValue) x).toStringMap())
+                    .filter(x -> !x.get("qualifier").equals(DATE_COL))
+                    .filter(x -> Arrays.stream(columnList).anyMatch(y -> ((String) x.get("qualifier")).matches(y)))
+                    .forEach(x -> {
+                        // read the cell value and write it out as
+                        // CompositeKey(column name, timestamp), TimeSeriesData(timestamp, float value)
+                        String columnName = (String) x.get("qualifier");
+                        long timestamp = dateTime.toEpochSecond(ZoneOffset.UTC);
 
-                    // set output key to column name, timestamp
-                    reducerKey.set(columnName, timestamp);
+                        // set output key to column name, timestamp
+                        reducerKey.set(columnName, timestamp);
 
-                    reducerValue.setTimestamp(timestamp);
+                        reducerValue.setTimestamp(timestamp);
 
-                    /* hbase stores everything as bytes, so need to decode the bytes appropriately,
-                     * i.e. do bytes represent a float value or the string representation of a float value */
-                    Optional<Object> colVal = typeMap.decode(columnName, value.getValue(FAMILY_BYTES, columnName.getBytes()));
+                        /* hbase stores everything as bytes, so need to decode the bytes appropriately,
+                         * i.e. do bytes represent a float value or the string representation of a float value */
+                        Optional<Object> colVal = typeMap.decode(columnName, value.getValue(FAMILY_BYTES, columnName.getBytes()));
 
-                    if (!colVal.isPresent()) {
-                        logger.warn(String.format(
-                                "Could not decode value for column %s using map %s", columnName, typeMap));
-                    }
-                    colVal.ifPresent(v -> {
-                        Value val = null;
-                        if (v instanceof String) {
-                            val = Value.of(Float.parseFloat((String)v));
-                        } else if (v instanceof Float) {
-                            val = Value.of(v);
-                        } else if (v instanceof Double) {
-                            val = Value.of(((Double) v).floatValue());
+                        if (!colVal.isPresent()) {
+                            logger.warn(String.format("Could not decode value for column %s using map %s",
+                                    columnName, typeMap));
                         }
-                        if (val != null) {
-                            reducerValue.setValue(val);
-                            try {
-                                context.write(reducerKey, reducerValue);
-                            } catch (IOException | InterruptedException e) {
-                                e.printStackTrace();
+                        colVal.ifPresent(v -> {
+                            Value val = null;
+                            if (v instanceof String) {
+                                val = Value.of(Float.parseFloat((String) v));
+                            } else if (v instanceof Float) {
+                                val = Value.of(v);
+                            } else if (v instanceof Double) {
+                                val = Value.of(((Double) v).floatValue());
                             }
-                        } else {
-                            logger.warn("Ignoring column value of type " + v.getClass().getSimpleName());
-                        }
+                            if (val != null) {
+                                reducerValue.setValue(val);
+                                try {
+                                    context.write(reducerKey, reducerValue);
+                                } catch (IOException | InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+                            } else {
+                                logger.warn("Ignoring column value of type " + v.getClass().getSimpleName());
+                            }
+                        });
                     });
-                });
+        }
     }
 }

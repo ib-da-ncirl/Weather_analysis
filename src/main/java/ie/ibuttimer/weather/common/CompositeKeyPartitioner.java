@@ -20,13 +20,11 @@
  *  SOFTWARE.
  */
 
-package ie.ibuttimer.weather.sma;
+package ie.ibuttimer.weather.common;
 
-import ie.ibuttimer.weather.common.CompositeKey;
-import ie.ibuttimer.weather.common.TimeSeriesData;
 import org.apache.hadoop.mapreduce.Partitioner;
 
-public class SmaPartitioner extends Partitioner<CompositeKey, TimeSeriesData> {
+public class CompositeKeyPartitioner extends Partitioner<CompositeKey, TimeSeriesData> {
 
     @Override
     public int getPartition(CompositeKey compositeKey, TimeSeriesData timeSeriesData, int numPartitions) {

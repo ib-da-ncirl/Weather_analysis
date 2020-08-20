@@ -26,6 +26,7 @@ import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Maps;
 import ie.ibuttimer.weather.misc.DataTypes;
 import ie.ibuttimer.weather.misc.Value;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -151,11 +152,11 @@ public class Hbase {
             byte [] value = result.getValue(FAMILY_BYTES, Bytes.toBytes(name));
             Value val;
             switch (type) {
-                case INT:       val = Value.of(Bytes.toInt(value));      break;
-                case LONG:      val = Value.of(Bytes.toLong(value));        break;
-                case FLOAT:     val = Value.of(Bytes.toFloat(value));      break;
-                case DOUBLE:    val = Value.of(Bytes.toDouble(value));    break;
-                default:        val = Value.of(new String(value));                        break;
+                case INT:       val = Value.of(Bytes.toInt(value));     break;
+                case LONG:      val = Value.of(Bytes.toLong(value));    break;
+                case FLOAT:     val = Value.of(Bytes.toFloat(value));   break;
+                case DOUBLE:    val = Value.of(Bytes.toDouble(value));  break;
+                default:        val = Value.of(new String(value));      break;
             }
             addTo.put(name, val);
         });
@@ -171,11 +172,13 @@ public class Hbase {
      * Get a table of values <row, column, value>
      * @param tableName
      * @param scan
-     * @param columns
+     * @param columns   required columns
+     * @param matchRegex    regex to match rows required
      * @return
      * @throws IOException
      */
-    public HashBasedTable<String, String, Value> read(String tableName, Scan scan, Map<String, DataTypes> columns) throws IOException {
+    public HashBasedTable<String, String, Value> read(String tableName, Scan scan, Map<String, DataTypes> columns,
+                                                      String matchRegex) throws IOException {
 
         HashBasedTable<String, String, Value> data = HashBasedTable.create();
 
@@ -185,16 +188,28 @@ public class Hbase {
 
         scanner.forEach(result -> {
             try {
-                Map<String, Value> rowValues = readValues(result, columns);
-                rowValues.forEach((key, val) -> {
-                    data.put(new String(result.getRow()), key, val);
-                });
+                String row = new String(result.getRow());
+                boolean skip = false;
+                if (!StringUtils.isEmpty(matchRegex)) {
+                    // check is required
+                    skip = !row.matches(matchRegex);
+                }
+                if (!skip) {
+                    Map<String, Value> rowValues = readValues(result, columns);
+                    rowValues.forEach((key, val) -> {
+                        data.put(row, key, val);
+                    });
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             }
         });
 
         return data;
+    }
+
+    public HashBasedTable<String, String, Value> read(String tableName, Scan scan, Map<String, DataTypes> columns) throws IOException {
+        return read(tableName, scan, columns, "");
     }
 
     /**
