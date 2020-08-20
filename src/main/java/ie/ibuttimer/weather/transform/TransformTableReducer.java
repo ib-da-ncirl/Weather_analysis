@@ -24,6 +24,7 @@ package ie.ibuttimer.weather.transform;
 
 import com.google.common.collect.HashBasedTable;
 import ie.ibuttimer.weather.common.AbstractDriver;
+import ie.ibuttimer.weather.common.AbstractTableReducer;
 import ie.ibuttimer.weather.common.CompositeKey;
 import ie.ibuttimer.weather.common.TimeSeriesData;
 import ie.ibuttimer.weather.misc.AppLogger;
@@ -31,7 +32,6 @@ import ie.ibuttimer.weather.misc.Utils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.mapreduce.TableReducer;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.io.Text;
 import org.apache.log4j.Logger;
@@ -55,7 +55,7 @@ import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
  * - Calculates the auto covariance
  * - Calculates the auto correlation
  */
-public class TransformTableReducer extends TableReducer<CompositeKey, TimeSeriesData, Text> {
+public class TransformTableReducer extends AbstractTableReducer<CompositeKey, TimeSeriesData, Text> {
 
     // public abstract class TableReducer<KEYIN, VALUEIN, KEYOUT> extends Reducer<KEYIN, VALUEIN, KEYOUT, Mutation>
 
@@ -109,6 +109,7 @@ public class TransformTableReducer extends TableReducer<CompositeKey, TimeSeries
     protected void reduce(CompositeKey key, Iterable<TimeSeriesData> values, Context context) throws IOException, InterruptedException {
 
         double mean = stats.get(key.getMainKey(), MEAN);
+        final boolean[] first = {true};
 
         values.forEach(v -> {
 
@@ -123,13 +124,20 @@ public class TransformTableReducer extends TableReducer<CompositeKey, TimeSeries
                     // zero transformed value
                     .addColumn(FAMILY_BYTES, key.getMainKey().getBytes(), storeValueAsString(zeroTransform));
 
+            if (first[0]) {
+                accumulators.forEach(a -> {
+                    a.tag = key.getMainKey() + "_lag_" + a.getId() + "_result";
+                });
+                first[0] = false;
+            }
+
             accumulators.forEach(a -> {
                 a.meanDist += Math.pow(zeroTransform, 2);   // sq(y - y_bar)
                 a.lagged.addValue(timestamp, value)
                         .ifPresent(lv -> {
                             // normalised lag value
                             double zeroTransformLag = lv - mean;
-                            put.addColumn(FAMILY_BYTES, (key.getMainKey() + "_lag_" + (a.lag/SEC_PER_HR)).getBytes(),
+                            put.addColumn(FAMILY_BYTES, (key.getMainKey() + "_lag_" + a.getId()).getBytes(),
                                     storeValueAsString(zeroTransformLag));
 
                             a.diffProd += (zeroTransform * zeroTransformLag);
@@ -137,11 +145,7 @@ public class TransformTableReducer extends TableReducer<CompositeKey, TimeSeries
                 ++a.count;
             });
 
-            try {
-                context.write(null, put);
-            } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
-            }
+            write(context, put);
         });
 
         accumulators.forEach(a -> {
@@ -153,7 +157,14 @@ public class TransformTableReducer extends TableReducer<CompositeKey, TimeSeries
             double autocorrelation = a.diffProd / a.meanDist;
 
             logger.logger().info(String.format("XXX %d XXX  autocovariance %.3f   autocorrelation %.3f",
-                    a.lag/SEC_PER_HR, autocovariance, autocorrelation));
+                    a.getId(), autocovariance, autocorrelation));
+
+            Put put = new Put(Bytes.toBytes(a.tag))
+                    .addColumn(FAMILY_BYTES, "autocovariance".getBytes(), storeValueAsString(autocovariance))
+                    .addColumn(FAMILY_BYTES, "autocorrelation".getBytes(), storeValueAsString(autocorrelation));
+
+            write(context, put);
+
         });
     }
 
@@ -178,6 +189,7 @@ public class TransformTableReducer extends TableReducer<CompositeKey, TimeSeries
         double diffProd;
         double meanDist;
         long count;
+        String tag;
 
         public Accumulator(long lag) {
             this.lag = lag;
@@ -185,6 +197,11 @@ public class TransformTableReducer extends TableReducer<CompositeKey, TimeSeries
             this.diffProd = 0;
             this.meanDist = 0;
             this.count = 0;
+            this.tag = "";
+        }
+
+        long getId() {
+            return lag/SEC_PER_HR;
         }
     }
 }
