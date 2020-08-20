@@ -33,11 +33,10 @@ import org.apache.hadoop.io.Text;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 
 import static ie.ibuttimer.weather.Constants.*;
+import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
 
 /**
  * Reducer to perform statistical analysis
@@ -70,10 +69,10 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
 
     private int num_strata;
     private int strata_width;
-    private Accumulator[] accumulators;
+    private StatsAccumulator[] accumulators;
     private int[] widths;
     private int current_strata;
-    private Accumulator overall;
+    private StatsAccumulator overall;
 
     @Override
     protected void setup(Context context) {
@@ -82,14 +81,14 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
 
         this.num_strata = conf.getInt(CFG_NUM_STRATA, DFLT_NUM_STRATA);
         this.strata_width = conf.getInt(CFG_STRATA_WIDTH, DFLT_STRATA_WIDTH);
-        this.accumulators = new Accumulator[this.num_strata];
+        this.accumulators = new StatsAccumulator[this.num_strata];
         for (int i = 0; i < this.num_strata; ++i) {
-            this.accumulators[i] = new Accumulator();
+            this.accumulators[i] = new StatsAccumulator();
         }
         this.widths = new int[this.num_strata];
         Arrays.fill(widths, 0);
         this.current_strata = 0;
-        this.overall = new Accumulator();
+        this.overall = new StatsAccumulator();
     }
 
     @Override
@@ -125,19 +124,18 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
         }
     }
 
-    private void write(Context context, Accumulator accumulator, int index, String name) throws IOException, InterruptedException {
-        double stdDev = Math.sqrt(accumulator.variance);
-        String minTs = LocalDateTime.ofEpochSecond(accumulator.minTimestamp, 0, ZoneOffset.UTC).format(DATETIME_FMT);
-        String maxTs = LocalDateTime.ofEpochSecond(accumulator.maxTimestamp, 0, ZoneOffset.UTC).format(DATETIME_FMT);
+    private void write(Context context, StatsAccumulator accumulator, int index, String name) throws IOException, InterruptedException {
+        String minTs = accumulator.getMinTimestamp(DATETIME_FMT);
+        String maxTs = accumulator.getMaxTimestamp(DATETIME_FMT);
         Put put = new Put(Bytes.toBytes(name))
-                .addColumn(FAMILY_BYTES, columnNameBytes(COUNT, index), Bytes.toBytes(accumulator.count))
-                .addColumn(FAMILY_BYTES, columnNameBytes(MIN, index), Bytes.toBytes(accumulator.min))
-                .addColumn(FAMILY_BYTES, columnNameBytes(MAX, index), Bytes.toBytes(accumulator.max))
-                .addColumn(FAMILY_BYTES, columnNameBytes(MEAN, index), Bytes.toBytes(accumulator.mean))
-                .addColumn(FAMILY_BYTES, columnNameBytes(VARIANCE, index), Bytes.toBytes(accumulator.variance))
-                .addColumn(FAMILY_BYTES, columnNameBytes(STD_DEV, index), Bytes.toBytes(stdDev))
-                .addColumn(FAMILY_BYTES, columnNameBytes(MIN_TS, index), Bytes.toBytes(minTs))
-                .addColumn(FAMILY_BYTES, columnNameBytes(MAX_TS, index), Bytes.toBytes(maxTs));
+                .addColumn(FAMILY_BYTES, columnNameBytes(COUNT, index), storeValueAsString(accumulator.getCount()))
+                .addColumn(FAMILY_BYTES, columnNameBytes(MIN, index), storeValueAsString(accumulator.getMin()))
+                .addColumn(FAMILY_BYTES, columnNameBytes(MAX, index), storeValueAsString(accumulator.getMax()))
+                .addColumn(FAMILY_BYTES, columnNameBytes(MEAN, index), storeValueAsString(accumulator.getMean()))
+                .addColumn(FAMILY_BYTES, columnNameBytes(VARIANCE, index), storeValueAsString(accumulator.getVariance()))
+                .addColumn(FAMILY_BYTES, columnNameBytes(STD_DEV, index), storeValueAsString(accumulator.getSetDev()))
+                .addColumn(FAMILY_BYTES, columnNameBytes(MIN_TS, index), storeValueAsString(minTs))
+                .addColumn(FAMILY_BYTES, columnNameBytes(MAX_TS, index), storeValueAsString(maxTs));
 
         String label;
         if (index < 0) {
@@ -147,52 +145,11 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
         }
         logger.logger().info(
                 String.format("%s: %s - count=%d  min=%f  max=%f  mean=%f  variance=%f  stdDev=%f  minTs=%s  maxTs=%s",
-                        name, label, accumulator.count, accumulator.min, accumulator.max, accumulator.mean,
-                        accumulator.variance, stdDev, minTs, maxTs));
+                        name, label, accumulator.getCount(), accumulator.getMin(), accumulator.getMax(),
+                        accumulator.getMean(), accumulator.getVariance(), accumulator.getSetDev(), minTs, maxTs));
 
         context.write(null, put);
 
-    }
-
-    private static class Accumulator {
-        private long count;
-        private double min;
-        private double max;
-        private double mean;
-        private double variance;
-        private long minTimestamp;
-        private long maxTimestamp;
-
-        public Accumulator() {
-            this.count = 0;
-            this.min = Double.MAX_VALUE;
-            this.max = Double.MIN_VALUE;
-            this.mean = 0.0;
-            this.variance = 0.0;
-            this.minTimestamp = Long.MAX_VALUE;
-            this.maxTimestamp = Long.MIN_VALUE;
-        }
-
-        public void addValue(double value, long timestamp) {
-            ++count;
-            if (value < min) {
-                min = value;
-            }
-            if (value > max) {
-                max = value;
-            }
-            double delta = value - mean;
-            mean += (delta / count);
-            double delta2 = value - mean;
-            variance += (delta * delta2);
-
-            if (timestamp < minTimestamp) {
-                minTimestamp = timestamp;
-            }
-            if (timestamp > maxTimestamp) {
-                maxTimestamp = timestamp;
-            }
-        }
     }
 
     @Override

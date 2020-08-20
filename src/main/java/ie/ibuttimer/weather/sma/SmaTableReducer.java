@@ -34,6 +34,7 @@ import org.apache.hadoop.io.Text;
 import java.io.IOException;
 
 import static ie.ibuttimer.weather.Constants.FAMILY_BYTES;
+import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
 
 /**
  * Reducer to perform Simple Moving Average functionality
@@ -60,6 +61,8 @@ public class SmaTableReducer extends TableReducer<CompositeKey, TimeSeriesData, 
     protected void reduce(CompositeKey key, Iterable<TimeSeriesData> values, Context context) {
 
         engine.reduce(key, values, context);
+
+        // TODO calculate MSE
     }
 
     @Override
@@ -67,10 +70,10 @@ public class SmaTableReducer extends TableReducer<CompositeKey, TimeSeriesData, 
                                                                     throws IOException, InterruptedException {
         String row = Utils.getRowName(key.getSubKey());
         Put put = new Put(Bytes.toBytes(row))
-            .addColumn(FAMILY_BYTES, ACTUAL, Bytes.toBytes(value))
-            .addColumn(FAMILY_BYTES, MOVING_AVG, Bytes.toBytes(movingAvg))
-            .addColumn(FAMILY_BYTES, ERROR, Bytes.toBytes(error))
-            .addColumn(FAMILY_BYTES, SQ_ERROR, Bytes.toBytes(Math.pow(error, 2)));
+            .addColumn(FAMILY_BYTES, ACTUAL, storeValueAsString(value))
+            .addColumn(FAMILY_BYTES, MOVING_AVG, storeValueAsString(movingAvg))
+            .addColumn(FAMILY_BYTES, ERROR, storeValueAsString(error))
+            .addColumn(FAMILY_BYTES, SQ_ERROR, storeValueAsString(Math.pow(error, 2)));
 
         context.write(null, put);
     }

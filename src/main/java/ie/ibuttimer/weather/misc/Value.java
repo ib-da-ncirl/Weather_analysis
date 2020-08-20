@@ -495,6 +495,10 @@ public class Value implements IStatOps<Value>, Writable {
         return ((Number) this.value).intValue();
     }
 
+    public String stringValue() {
+        return this.value.toString();
+    }
+
     public static BigInteger bigIntegerValue(Number number) {
         BigInteger result;
         if (number instanceof BigInteger) {

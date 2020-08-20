@@ -256,10 +256,26 @@ public class Utils {
     }
 
 
+    public static final String ROWNAME_PREFIX = "r-";
 
+    /**
+     * Generate row name from timestamp
+     * @param timestamp
+     * @return
+     */
     public static String getRowName(long timestamp) {
-        return "r-" +
+        return ROWNAME_PREFIX +
                 LocalDateTime.ofEpochSecond(timestamp, 0, ZoneOffset.UTC).format(YYYYMMDDHH_FMT);
 
+    }
+
+
+    /**
+     * Get date time from row name
+     * @param rowName
+     * @return
+     */
+    public static LocalDateTime getRowDateTime(String rowName) {
+        return LocalDateTime.parse(rowName.substring(ROWNAME_PREFIX.length()), YYYYMMDDHH_FMT);
     }
 }

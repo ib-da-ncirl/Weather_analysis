@@ -28,9 +28,9 @@ import ie.ibuttimer.weather.misc.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hbase.thirdparty.com.google.common.collect.Maps;
 
 import java.io.IOException;
@@ -115,7 +115,7 @@ public abstract class AbstractDriver implements IDriver {
 
     public HashBasedTable<String, String, Value> loadStats(Hbase hbase, JobConfig jobCfg, String tableName) throws IOException {
         Map<String, DataTypes> columns = com.google.common.collect.Maps.newHashMap();
-        Arrays.asList(MEAN, VARIANCE).forEach(x -> columns.put(x, DataTypes.DOUBLE));
+        Arrays.asList(MEAN, VARIANCE).forEach(x -> columns.put(x, DataTypes.STRING));   // analysis table values are stored as strings
         return hbase.read(tableName, initScan(jobCfg, EnableStartStop.IGNORE), columns);
     }
 
@@ -128,7 +128,7 @@ public abstract class AbstractDriver implements IDriver {
             stats.columnKeySet().forEach(col -> {
                 sb.append(row).append(',')          // row, i.e. variable name
                         .append(col).append(',')    // col, i.e. 'mean', 'variance'
-                        .append(stats.get(row, col).doubleValue()).append(';'); // value
+                        .append(stats.get(row, col).stringValue()).append(';'); // value
             });
         });
         config.set(REDUCER_STATS, sb.toString());
@@ -145,4 +145,12 @@ public abstract class AbstractDriver implements IDriver {
         return stats;
     }
 
+
+    protected Hbase createTable(JobConfig jobCfg, String tableName) throws IOException {
+        Hbase hbase = hbase = Hbase.of(jobCfg.getProperty(CFG_HBASE_RESOURCE, DFLT_HBASE_RESOURCE));
+        if (!hbase.tableExists(TableName.valueOf(tableName))) {
+            hbase.createTable(tableName, FAMILY);
+        }
+        return hbase;
+    }
 }

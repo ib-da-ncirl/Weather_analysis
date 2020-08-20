@@ -39,7 +39,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static ie.ibuttimer.weather.Constants.FAMILY_BYTES;
-import static ie.ibuttimer.weather.analysis.AnalysisTableReducer.MEAN;
 import static org.apache.hadoop.hbase.client.TableDescriptor.COMPARATOR;
 
 public class Hbase {
@@ -196,5 +195,50 @@ public class Hbase {
         });
 
         return data;
+    }
+
+    /**
+     * Convert to byte array of string value to save so easy to read in hbase shell
+     * @param value
+     * @return
+     */
+    public static byte[] storeValueAsString(int value) {
+        return Integer.toString(value).getBytes();
+    }
+
+    /**
+     * Convert to byte array of string value to save so easy to read in hbase shell
+     * @param value
+     * @return
+     */
+    public static byte[] storeValueAsString(long value) {
+        return Long.toString(value).getBytes();
+    }
+
+    /**
+     * Convert to byte array of string value to save so easy to read in hbase shell
+     * @param value
+     * @return
+     */
+    public static byte[] storeValueAsString(float value) {
+        return Float.toString(value).getBytes();
+    }
+
+    /**
+     * Convert to byte array of string value to save so easy to read in hbase shell
+     * @param value
+     * @return
+     */
+    public static byte[] storeValueAsString(double value) {
+        return Double.toString(value).getBytes();
+    }
+
+    /**
+     * Convert to byte array of string value to save so easy to read in hbase shell
+     * @param value
+     * @return
+     */
+    public static byte[] storeValueAsString(String value) {
+        return value.getBytes();
     }
 }

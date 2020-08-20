@@ -1,7 +1,5 @@
 package ie.ibuttimer.weather;
 
-import org.apache.hadoop.hbase.TableName;
-
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 
@@ -135,9 +133,17 @@ public class Constants {
     public static final String CFG_SCAN_CACHING = "scan_caching";
     public static final int DFLT_SCAN_CACHING = 500;
 
-    public static final String CFG_WEATHER_TABLE = "weather_table";
-    public static final String CFG_ANALYSIS_TABLE = "analysis_table";
-    public static final String CFG_TRANSFORM_TABLE = "transform_table";
+    public static final String CFG_ANALYSIS_IN_TABLE = "analysis_in_table";
+    public static final String CFG_ANALYSIS_OUT_TABLE = "analysis_out_table";
+    public static final String CFG_TRANSFORM_IN_TABLE = "transform_in_table";
+    public static final String CFG_TRANSFORM_STATS_TABLE = "transform_stats_table";
+    public static final String CFG_TRANSFORM_OUT_TABLE = "transform_out_table";
+    public static final String CFG_DIFFERENCING_IN_TABLE = "differencing_in_table";
+    public static final String CFG_DIFFERENCING_OUT_TABLE = "differencing_out_table";
+
+    public static final String CFG_SMA_IN_TABLE = "sma_in_table";
+
+    public static final String CFG_KEY_TYPE_MAP = "key_type_map";
 
     public static final String CFG_IN_PATH_ROOT = "global.in_path_root";
     public static final String CFG_OUT_PATH_ROOT = "global.out_path_root";
@@ -160,6 +166,7 @@ public class Constants {
     public static final String DFLT_SMA_REDUCE_TABLE = "sma_info";
 
     public static final String CFG_TRANSFORM_LAG = "transform_lag";           // lag in hours
+    public static final String CFG_TRANSFORM_DIFFERENCING = "transform_differencing";   // differencing in num of readings
     public static final String CFG_START_DATETIME = "start_datetime";          // filter start date/time
     public static final String CFG_STOP_DATETIME = "stop_datetime";           // filter end date/time
 

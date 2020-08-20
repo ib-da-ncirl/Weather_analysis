@@ -31,7 +31,6 @@ import ie.ibuttimer.weather.misc.JobConfig;
 import ie.ibuttimer.weather.sma.SmaPartitioner;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.mapreduce.Job;
 
@@ -40,14 +39,14 @@ import java.util.Map;
 
 import static ie.ibuttimer.weather.Constants.*;
 
-public class TransformDriver extends AbstractDriver implements IDriver {
+public class DifferencingDriver extends AbstractDriver implements IDriver {
 
-    protected TransformDriver(AppLogger logger) {
+    protected DifferencingDriver(AppLogger logger) {
         super(logger);
     }
 
-    public static TransformDriver of(AppLogger logger) {
-        return new TransformDriver(logger);
+    public static DifferencingDriver of(AppLogger logger) {
+        return new DifferencingDriver(logger);
     }
 
     @Override
@@ -55,7 +54,7 @@ public class TransformDriver extends AbstractDriver implements IDriver {
 
         Pair<Integer, Map<String, String>> properties =
                 getRequiredStringProperies(jobCfg,
-                        Lists.newArrayList(CFG_TRANSFORM_IN_TABLE, CFG_TRANSFORM_STATS_TABLE, CFG_TRANSFORM_OUT_TABLE));
+                        Lists.newArrayList(CFG_DIFFERENCING_IN_TABLE, CFG_DIFFERENCING_OUT_TABLE));
 
         int resultCode = properties.getKey();
 
@@ -64,26 +63,19 @@ public class TransformDriver extends AbstractDriver implements IDriver {
             Map<String, String> map = properties.getRight();
 
             // create output table if necessary
-            TableName transformTable = TableName.valueOf(map.get(CFG_TRANSFORM_OUT_TABLE));
+            String outputTable = map.get(CFG_DIFFERENCING_OUT_TABLE);
             Hbase hbase = null;
             try {
-                hbase = Hbase.of(jobCfg.getProperty(CFG_HBASE_RESOURCE, DFLT_HBASE_RESOURCE));
-                if (!hbase.tableExists(transformTable)) {
-                    hbase.createTable(transformTable.getNameAsString(), FAMILY);
-                }
-
-                String statsTable = map.get(CFG_TRANSFORM_STATS_TABLE);
-                addStatsToConfig(hbase, jobCfg, statsTable, config);
-
+                hbase = createTable(jobCfg, outputTable);
             } finally {
                 if (hbase != null) {
                     hbase.closeConnection();
                 }
             }
 
-            Job job = initJob(config, jobCfg, "Transform");
+            Job job = initJob(config, jobCfg, "Differencing");
 
-            String inputTable = map.get(CFG_TRANSFORM_IN_TABLE);
+            String inputTable = map.get(CFG_DIFFERENCING_IN_TABLE);
             TableMapReduceUtil.initTableMapperJob(
                     inputTable,         // input table
                     initScan(jobCfg),     // Scan instance to control CF and attribute selection
@@ -93,8 +85,8 @@ public class TransformDriver extends AbstractDriver implements IDriver {
                     job);
 
             TableMapReduceUtil.initTableReducerJob(
-                    transformTable.getNameAsString(),   // output table
-                    TransformTableReducer.class,   // reducer class
+                    outputTable,   // output table
+                    DifferencingTableReducer.class,   // reducer class
                     job);
 
             job.setPartitionerClass(SmaPartitioner.class);

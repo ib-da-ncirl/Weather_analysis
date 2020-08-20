@@ -22,11 +22,13 @@
 
 package ie.ibuttimer.weather;
 
+import com.google.common.collect.Lists;
 import ie.ibuttimer.weather.analysis.AnalysisDriver;
 import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.JobConfig;
 import ie.ibuttimer.weather.misc.Utils;
 import ie.ibuttimer.weather.sma.SmaDriver;
+import ie.ibuttimer.weather.transform.DifferencingDriver;
 import ie.ibuttimer.weather.transform.TransformDriver;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.FileUtils;
@@ -52,6 +54,7 @@ public class WeatherAnalysis extends Configured implements Tool {
     AppLogger logger = AppLogger.of(Logger.getLogger("WeatherAnalysis"));
 
     private static final String OPT_HELP = "h";
+    private static final String OPT_ARG_FILE = "a";
     private static final String OPT_CFG = "c";
     private static final String OPT_JOB = "j";
     private static final String OPT_VERBOSE = "v";
@@ -66,9 +69,11 @@ public class WeatherAnalysis extends Configured implements Tool {
     static {
         options = new Options();
         options.addOption(OPT_HELP, false, "print this message");
+        options.addOption(OPT_ARG_FILE, true, "file to read arguments from");
         options.addOption(OPT_CFG, true, "configuration file(s), multiple files separated by '" +
                 MULTIPLE_CFG_FILE_SEP + "'");
-        options.addOption(OPT_JOB, true, "name of job to run");
+        options.addOption(OPT_JOB, true, "name of job to run, or list separated by '" +
+                MULTIPLE_CFG_FILE_SEP + "'");
         options.addOption(OPT_VERBOSE, false, "verbose mode");
         options.addOption(OPT_WAIT, false, "wait for job completion, [default]");
         options.addOption(OPT_NO_WAIT, false, "do not wait for job completion");
@@ -86,6 +91,7 @@ public class WeatherAnalysis extends Configured implements Tool {
 
     private static final String JOB_ANALYSIS = "analysis";
     private static final String JOB_TRANSFORM = "transform";
+    private static final String JOB_DIFFERENCING = "difference";
     private static final String JOB_SMA = "sma";
     private static final List<Triple<String, String, String>> jobList;
     private static final String jobListFmt;
@@ -93,6 +99,7 @@ public class WeatherAnalysis extends Configured implements Tool {
         jobList = new ArrayList<>();
         jobList.add(Triple.of(JOB_ANALYSIS, "perform Analysis", "Analysis Job"));
         jobList.add(Triple.of(JOB_TRANSFORM, "perform Transformation", "Transform Job"));
+        jobList.add(Triple.of(JOB_DIFFERENCING, "perform Differencing", "Differencing Job"));
         jobList.add(Triple.of(JOB_SMA, "perform Simple Moving Average", "SMA Job"));
 
         OptionalInt width = jobList.stream().map(Triple::getLeft).mapToInt(String::length).max();
@@ -114,6 +121,24 @@ public class WeatherAnalysis extends Configured implements Tool {
         try {
             CommandLine cmd = parser.parse(options, args);
 
+            if (cmd.hasOption(OPT_ARG_FILE)) {
+
+                logger.logger().info("Configuration: Argument file takeover!");
+
+                File file = FileUtils.getFile(cmd.getOptionValue(OPT_ARG_FILE));
+                List<String> contents = FileUtils.readLines(file, StandardCharsets.UTF_8);
+                if (contents.size() > 0) {
+                    ArrayList<String> newArgs = Lists.newArrayList();
+                    for (String line : contents) {
+                        if (!line.startsWith(COMMENT_PREFIX)) {
+                            newArgs.addAll(Arrays.asList(line.split(" ")));
+                        }
+                    }
+                    args = newArgs.toArray(new String[newArgs.size()]);
+                }
+                cmd = parser.parse(options, args);
+            }
+
             if (cmd.hasOption(OPT_IN_ROOT)) {
                 inPathRoot = cmd.getOptionValue(OPT_IN_ROOT);
             }
@@ -125,11 +150,9 @@ public class WeatherAnalysis extends Configured implements Tool {
                 String jobFile = cmd.getOptionValue(OPT_MULTI_JOB);
                 if (StringUtils.isEmpty(jobFile)) {
                     resultCode = STATUS_CONFIG_ERROR;
-                    logger.warn(
-                        String.format("No job file specified"));
+                    logger.warn("No job file specified");
                     help();
                 }
-
                 File file = FileUtils.getFile(jobFile);
                 List<String> contents = FileUtils.readLines(file, StandardCharsets.UTF_8);
 
@@ -240,6 +263,9 @@ public class WeatherAnalysis extends Configured implements Tool {
                                 break;
                             case JOB_TRANSFORM:
                                 resultCode = TransformDriver.of(logger).runJob(config, jobCfg);
+                                break;
+                            case JOB_DIFFERENCING:
+                                resultCode = DifferencingDriver.of(logger).runJob(config, jobCfg);
                                 break;
                             case JOB_SMA:
                                 resultCode = SmaDriver.of(logger).runJob(config, jobCfg);

@@ -23,5 +23,24 @@
 package ie.ibuttimer.weather.misc;
 
 public enum DataTypes {
-    STRING, INT, LONG, FLOAT, DOUBLE
+    UNKNOWN, STRING, INT, LONG, FLOAT, DOUBLE;
+
+    public static DataTypes of(String type) {
+        DataTypes dType;
+        if (type.equalsIgnoreCase("int") || type.equalsIgnoreCase("integer")) {
+            dType = INT;
+        } else if (type.equalsIgnoreCase("lng") || type.equalsIgnoreCase("long")) {
+            dType = LONG;
+        } else if (type.equalsIgnoreCase("flt") || type.equalsIgnoreCase("float")) {
+            dType = FLOAT;
+        } else if (type.equalsIgnoreCase("dbl") || type.equalsIgnoreCase("double")) {
+            dType = DOUBLE;
+        } else if (type.equalsIgnoreCase("str") || type.equalsIgnoreCase("string")) {
+            dType = STRING;
+        } else {
+            dType = UNKNOWN;
+        }
+        return dType;
+    }
+
 }

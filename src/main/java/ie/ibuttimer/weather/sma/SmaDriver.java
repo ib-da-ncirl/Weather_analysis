@@ -52,7 +52,7 @@ public class SmaDriver extends AbstractDriver implements IDriver {
     @Override
     public int runJob(Configuration config, JobConfig jobCfg) throws IOException, ClassNotFoundException, InterruptedException {
 
-        Pair<Integer, String> properties = getRequiredStringProperty(jobCfg, CFG_WEATHER_TABLE);
+        Pair<Integer, String> properties = getRequiredStringProperty(jobCfg, CFG_SMA_IN_TABLE);
 
         int resultCode = properties.getLeft();
 

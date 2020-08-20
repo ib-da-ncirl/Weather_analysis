@@ -41,9 +41,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static ie.ibuttimer.weather.Constants.CFG_TRANSFORM_LAG;
-import static ie.ibuttimer.weather.Constants.FAMILY_BYTES;
+import static ie.ibuttimer.weather.Constants.*;
 import static ie.ibuttimer.weather.analysis.AnalysisTableReducer.MEAN;
+import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
 
 /**
  * Reducer to perform statistical analysis
@@ -121,7 +121,7 @@ public class TransformTableReducer extends TableReducer<CompositeKey, TimeSeries
             String row = Utils.getRowName(key.getSubKey());
             Put put = new Put(Bytes.toBytes(row))
                     // zero transformed value
-                    .addColumn(FAMILY_BYTES, key.getMainKey().getBytes(), Bytes.toBytes(zeroTransform));
+                    .addColumn(FAMILY_BYTES, key.getMainKey().getBytes(), storeValueAsString(zeroTransform));
 
             accumulators.forEach(a -> {
                 a.meanDist += Math.pow(zeroTransform, 2);   // sq(y - y_bar)
@@ -129,7 +129,8 @@ public class TransformTableReducer extends TableReducer<CompositeKey, TimeSeries
                         .ifPresent(lv -> {
                             // normalised lag value
                             double zeroTransformLag = lv - mean;
-                            put.addColumn(FAMILY_BYTES, (key.getMainKey() + "_lag_" + (a.lag/SEC_PER_HR)).getBytes(), Bytes.toBytes(zeroTransformLag));
+                            put.addColumn(FAMILY_BYTES, (key.getMainKey() + "_lag_" + (a.lag/SEC_PER_HR)).getBytes(),
+                                    storeValueAsString(zeroTransformLag));
 
                             a.diffProd += (zeroTransform * zeroTransformLag);
                         });

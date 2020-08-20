@@ -56,7 +56,7 @@ public class AnalysisDriver extends AbstractDriver implements IDriver {
     public int runJob(Configuration config, JobConfig jobCfg) throws IOException, ClassNotFoundException, InterruptedException {
 
         Pair<Integer, Map<String, String>> properties =
-                getRequiredStringProperies(jobCfg, Lists.newArrayList(CFG_WEATHER_TABLE, CFG_ANALYSIS_TABLE));
+                getRequiredStringProperies(jobCfg, Lists.newArrayList(CFG_ANALYSIS_IN_TABLE, CFG_ANALYSIS_OUT_TABLE));
 
         int resultCode = properties.getKey();
 
@@ -67,7 +67,7 @@ public class AnalysisDriver extends AbstractDriver implements IDriver {
             Job job = initJob(config, jobCfg, "Analysis");
 
             TableMapReduceUtil.initTableMapperJob(
-                    map.get(CFG_WEATHER_TABLE), // input table
+                    map.get(CFG_ANALYSIS_IN_TABLE), // input table
                     initScan(jobCfg),     // Scan instance to control CF and attribute selection
                     CKTSMapper.class,     // mapper class
                     CompositeKey.class,   // mapper output key
@@ -75,7 +75,7 @@ public class AnalysisDriver extends AbstractDriver implements IDriver {
                     job);
 
             // create output table if necessary
-            TableName analysisTable = TableName.valueOf(map.get(CFG_ANALYSIS_TABLE));
+            TableName analysisTable = TableName.valueOf(map.get(CFG_ANALYSIS_OUT_TABLE));
             Hbase hbase = null;
             try {
                 hbase = Hbase.of(jobCfg.getProperty(CFG_HBASE_RESOURCE, DFLT_HBASE_RESOURCE));

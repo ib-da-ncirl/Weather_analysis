@@ -22,26 +22,37 @@
 
 package ie.ibuttimer.weather.common;
 
+import ie.ibuttimer.weather.hbase.TypeMap;
+import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.Value;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.NoTagsKeyValue;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.mapreduce.TableMapper;
+import org.apache.log4j.Logger;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Optional;
 
 import static ie.ibuttimer.weather.Constants.*;
+import static ie.ibuttimer.weather.hbase.TypeMap.STRING_MAPPER;
+import static ie.ibuttimer.weather.misc.Utils.getRowDateTime;
 
 public class CKTSMapper extends TableMapper<CompositeKey, TimeSeriesData> {
+
+    private static final AppLogger logger = AppLogger.of(Logger.getLogger("CKTSMapper"));
 
     private final CompositeKey reducerKey = new CompositeKey();
     private final TimeSeriesData reducerValue = new TimeSeriesData();
 
     private String[] columnList;
+
+    private TypeMap typeMap;
 
     /*
         hbase(main):004:0> get "weather_info", "r-2020063015"
@@ -65,15 +76,29 @@ public class CKTSMapper extends TableMapper<CompositeKey, TimeSeriesData> {
 
         Configuration conf = context.getConfiguration();
 
-        String listParam = conf.get(CFG_COLUMN_LIST);
-        columnList = listParam.split(CFG_COLUMN_LIST_SEP);
+        String param = conf.get(CFG_COLUMN_LIST);
+        columnList = param.split(CFG_COLUMN_LIST_SEP);
+
+        param = conf.get(CFG_KEY_TYPE_MAP, "");
+        if (StringUtils.isEmpty(param)) {
+            typeMap = STRING_MAPPER;
+        } else {
+            typeMap = TypeMap.of(param);
+        }
     }
 
     @Override
     protected void map(ImmutableBytesWritable key, Result value, Context context) throws IOException, InterruptedException {
 
-        String val = new String(value.getValue(FAMILY_BYTES, DATE_ATTR));
-        LocalDateTime dateTime = LocalDateTime.parse(val, DATETIME_FMT);
+        LocalDateTime dateTime;
+        if (value.containsColumn(FAMILY_BYTES, DATE_ATTR)) {
+            String val = new String(value.getValue(FAMILY_BYTES, DATE_ATTR));
+            dateTime = LocalDateTime.parse(val, DATETIME_FMT);
+        } else {
+            // get date time from row name
+            String val = new String(value.getRow());
+            dateTime = getRowDateTime(val);
+        }
 
         value.listCells().stream()
                 .map(x -> ((NoTagsKeyValue) x).toStringMap())
@@ -89,13 +114,35 @@ public class CKTSMapper extends TableMapper<CompositeKey, TimeSeriesData> {
                     reducerKey.set(columnName, timestamp);
 
                     reducerValue.setTimestamp(timestamp);
-                    String columnVal = new String(value.getValue(FAMILY_BYTES, columnName.getBytes()));
-                    reducerValue.setValue(Value.of(Float.parseFloat(columnVal)));
-                    try {
-                        context.write(reducerKey, reducerValue);
-                    } catch (IOException | InterruptedException e) {
-                        e.printStackTrace();
+
+                    /* hbase stores everything as bytes, so need to decode the bytes appropriately,
+                     * i.e. do bytes represent a float value or the string representation of a float value */
+                    Optional<Object> colVal = typeMap.decode(columnName, value.getValue(FAMILY_BYTES, columnName.getBytes()));
+
+                    if (!colVal.isPresent()) {
+                        logger.warn(String.format(
+                                "Could not decode value for column %s using map %s", columnName, typeMap));
                     }
+                    colVal.ifPresent(v -> {
+                        Value val = null;
+                        if (v instanceof String) {
+                            val = Value.of(Float.parseFloat((String)v));
+                        } else if (v instanceof Float) {
+                            val = Value.of(v);
+                        } else if (v instanceof Double) {
+                            val = Value.of(((Double) v).floatValue());
+                        }
+                        if (val != null) {
+                            reducerValue.setValue(val);
+                            try {
+                                context.write(reducerKey, reducerValue);
+                            } catch (IOException | InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                        } else {
+                            logger.warn("Ignoring column value of type " + v.getClass().getSimpleName());
+                        }
+                    });
                 });
     }
 }
