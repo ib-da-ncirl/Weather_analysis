@@ -40,7 +40,7 @@ public class ErrorTracker {
         if (error == 0.0 && value == 0.0) {
             percent = 0;    // special case; 0.0/0.0 = Nan
         } else {
-            percent = Math.abs(error)/Math.abs(value);
+            percent = Math.abs(error) / Math.abs(value);
         }
         // mean arctangent absolute percentage error (MAAPE); has no divide by zero issue like MAPE
         absErrorSum += Math.atan(percent);
@@ -49,11 +49,20 @@ public class ErrorTracker {
     }
 
     public double getMSE() {
-        return sqErrorSum/count;
+        return sqErrorSum / count;
     }
 
     public double getMAAPE() {
-        return absErrorSum/count;
+        return absErrorSum / count;
     }
 
+    /**
+     * Calculate Akaike information criterion (AIC)
+     *
+     * @param numParam estimated number of parameters
+     * @return
+     */
+    public double getAIC(int numParam, double likelihood) {
+        return (2 * numParam) - (2 * Math.log(likelihood));
+    }
 }

@@ -63,11 +63,8 @@ public class SmaTableReducer extends AbstractTableReducer<CompositeKey, TimeSeri
 
         engine.reduce(key, values, context);
 
-        Put put = new Put(Bytes.toBytes(STATS_ROW_MARK_REGEX + key.getMainKey()))
-                .addColumn(FAMILY_BYTES, Constants.MSE, storeValueAsString(errorTracker.getMSE()))
-                .addColumn(FAMILY_BYTES, Constants.MAAPE, storeValueAsString(errorTracker.getMAAPE()));
-
-        write(context, put);
+        // only param is window size
+        addModelMetrics(context, key.getMainKey(), errorTracker,1);
     }
 
     @Override

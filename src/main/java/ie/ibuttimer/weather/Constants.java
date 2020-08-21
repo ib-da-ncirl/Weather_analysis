@@ -65,6 +65,8 @@ public class Constants {
     public static final byte[] SQ_ERROR = "sq_error".getBytes();
     public static final byte[] MSE = "mse".getBytes();
     public static final byte[] MAAPE = "maape".getBytes();
+    public static final byte[] AIC_MSE = "aic_mse".getBytes();
+    public static final byte[] AIC_MAAPE = "aic_maape".getBytes();
 
     public static String stationColumn(String column, int station) {
         return column + "_" + Integer.toString(station);

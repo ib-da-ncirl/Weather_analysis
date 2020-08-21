@@ -159,11 +159,8 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
             count.incrementAndGet();
         });
 
-        Put put = new Put(Bytes.toBytes(STATS_ROW_MARK + key.getMainKey()))
-                .addColumn(FAMILY_BYTES, MSE, storeValueAsString(errorTracker.getMSE()))
-                .addColumn(FAMILY_BYTES, MAAPE, storeValueAsString(errorTracker.getMAAPE()));
-
-        write(context, put);
+        addModelMetrics(context, key.getMainKey(), errorTracker,
+                arTerms.size() + maTerms.size() + (constant == 0 ? 0 : 1));
     }
 
     @Override

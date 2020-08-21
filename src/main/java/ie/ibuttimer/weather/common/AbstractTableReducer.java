@@ -24,8 +24,12 @@ package ie.ibuttimer.weather.common;
 
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.mapreduce.TableReducer;
+import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
+
+import static ie.ibuttimer.weather.Constants.*;
+import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
 
 public abstract class AbstractTableReducer<KEYIN, VALUEIN, KEYOUT> extends TableReducer<KEYIN, VALUEIN, KEYOUT> {
 
@@ -35,5 +39,17 @@ public abstract class AbstractTableReducer<KEYIN, VALUEIN, KEYOUT> extends Table
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+    protected void addModelMetrics(Context context, String key, ErrorTracker errorTracker, int numParams) {
+        double mse = errorTracker.getMSE();
+        double maape = errorTracker.getMAAPE();
+        Put put = new Put(Bytes.toBytes(STATS_ROW_MARK + key))
+                .addColumn(FAMILY_BYTES, MSE, storeValueAsString(mse))
+                .addColumn(FAMILY_BYTES, MAAPE, storeValueAsString(maape))
+                .addColumn(FAMILY_BYTES, AIC_MSE, storeValueAsString(errorTracker.getAIC(numParams, mse)))
+                .addColumn(FAMILY_BYTES, AIC_MAAPE, storeValueAsString(errorTracker.getAIC(numParams, maape)));
+
+        write(context, put);
     }
 }
