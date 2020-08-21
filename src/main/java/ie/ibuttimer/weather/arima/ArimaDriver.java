@@ -60,6 +60,8 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
         return new ArimaDriver(logger);
     }
 
+    private enum Steps { CLEAR, DIFFERENCING, LAG, ARIMA };
+
     @Override
     public int runJob(Configuration config, JobConfig jobCfg) throws IOException, ClassNotFoundException, InterruptedException {
 
@@ -81,25 +83,56 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
 
             String stepInTable = map.get(CFG_ARIMA_IN_TABLE);
             String stepOutTable = map.get(CFG_ARIMA_DIFFERENCING_TABLE);
+            String lagOutTable = map.get(CFG_ARIMA_LAGS_TABLE);
+            String arimaOutTable = map.get(CFG_ARIMA_OUT_TABLE);
             List<String> statsList = Collections.EMPTY_LIST;
             List<String> targetRegexList = Collections.EMPTY_LIST;
             Hbase hbase = null;
 
-            boolean in_progress = true;
-            for (int step = 0; in_progress && step < 3; ++step) {
+            for (Steps step: Steps.values()) {
+                if (resultCode != STATUS_SUCCESS) {
+                    break;
+                }
 
                 switch (step) {
-                    case 0:
-                        logger.logger().info(heading(String.format("%nStep %d - Differencing", step + 1)));
+                    case CLEAR:
+                        logger.logger().info(heading(
+                                String.format("%nStep %d - Clear", step.ordinal() + 1)));
+
+                        try {
+                            hbase = hbaseConnection(jobCfg);
+                            // remove existing tables
+                            List<String> outputTables = Arrays.asList(stepOutTable, lagOutTable, arimaOutTable);
+                            Hbase finalHbase = hbase;
+                            hbase.getTables().stream()
+                                    .map(t -> new String(t.getTableName().getName()))
+                                    .filter(outputTables::contains)
+                                    .forEach(t -> {
+                                        try {
+                                            finalHbase.removeTable(t);
+                                        } catch (IOException e) {
+                                            e.printStackTrace();
+                                        }
+                                    });
+                        } finally {
+                            if (hbase != null) {
+                                hbase.closeConnection();
+                            }
+                        }
+                        break;
+
+                    case DIFFERENCING:
+                        logger.logger().info(heading(
+                                String.format("%nStep %d - Differencing", step.ordinal() + 1)));
 
                         // perform differencing
                         // update config with differencing info for arima
                         jobCfg.setProperty(CFG_DIFFERENCING_IN_TABLE, stepInTable);
                         jobCfg.setProperty(CFG_DIFFERENCING_OUT_TABLE, stepOutTable);
                         jobCfg.setProperty(CFG_TRANSFORM_DIFFERENCING, STEP+ "," + arimaD);
+//                        jobCfg.setProperty(CFG_TRANSFORM_DIFFERENCING, SEASON+ "," + (24*365));
 
                         resultCode = DifferencingDriver.of(logger).runJob(config, jobCfg);
-                        in_progress = (resultCode == STATUS_SUCCESS);
 
                         // Output columns: xxxx_1234_step_0 etc.
                         // for next step
@@ -109,12 +142,13 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
                         targetRegexList = Arrays.asList(".*", arimaD);
                         break;
 
-                    case 1:
+                    case LAG:
                         String passThrough = zeroTransform ? "" : " (No processing pass-through)";
-                        logger.logger().info(heading(String.format("%nStep %d - Lagging %s", step + 1, passThrough)));
+                        logger.logger().info(heading(
+                                String.format("%nStep %d - Lagging %s", step.ordinal() + 1, passThrough)));
 
                         if (zeroTransform) {
-                            stepOutTable = map.get(CFG_ARIMA_LAGS_TABLE);
+                            stepOutTable = lagOutTable;
 
                             // perform lagging
                             Optional<String> diffColumn;
@@ -150,7 +184,6 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
                                 resultCode = STATUS_FAIL;
                                 logger.error("Unable to identify target column for lagging");
                             }
-                            in_progress = (resultCode == STATUS_SUCCESS);
 
                             // for next step
                             // Output columns: xxxx_1234_step_1_lag_1 etc.
@@ -164,9 +197,10 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
                         stepInTable = stepOutTable;
                         break;
 
-                    case 2:
-                        logger.logger().info(heading(String.format("%nStep %d - ARIMA", step + 1)));
-                        stepOutTable = map.get(CFG_ARIMA_OUT_TABLE);
+                    case ARIMA:
+                        logger.logger().info(heading(
+                                String.format("%nStep %d - ARIMA", step.ordinal() + 1)));
+                        stepOutTable = arimaOutTable;
 
                         // perform arima
                         Optional<String> arimaColumn;
@@ -246,7 +280,7 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
             String outPath = jobCfg.getProperty(CFG_ARIMA_PATH_ROOT, "");
             if (!StringUtils.isEmpty(outPath)) {
                 TreeList<String> columns = new TreeList<>();
-                stats.columnKeySet().forEach(columns::add);
+                columns.addAll(stats.columnKeySet());
 
                 StringBuffer sb = new StringBuffer();
                 List<String> contents = Lists.newArrayList();

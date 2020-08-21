@@ -93,8 +93,17 @@ public class Hbase {
         getConnection().getAdmin().createTable(tableDescriptor(tableName, columnFamily));
     }
 
-    public void deleteTable(String tableName, String columnFamily) throws IOException {
-        getConnection().getAdmin().deleteTable(TableName.valueOf(tableName, columnFamily));
+    public void disableTable(String tableName) throws IOException {
+        getConnection().getAdmin().disableTable(TableName.valueOf(tableName));
+    }
+
+    public void deleteTable(String tableName) throws IOException {
+        getConnection().getAdmin().deleteTable(TableName.valueOf(tableName));
+    }
+
+    public void removeTable(String tableName) throws IOException {
+        disableTable(tableName);
+        deleteTable(tableName);
     }
 
     public List<TableDescriptor> getTables() throws IOException {

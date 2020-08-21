@@ -76,10 +76,10 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
 
         String coefficients = conf.get(CFG_ARIMA_P);
         arTerms = Arrays.asList(getCoefficients(coefficients));
-        modelParams.append(CFG_ARIMA_P).append("=").append(coefficients.replaceAll(",", ";"));
+        modelParams.append(CFG_ARIMA_P).append("=").append(sanitiseParam(coefficients));
 
         coefficients = conf.get(CFG_ARIMA_Q);
-        modelParams.append(" : ").append(CFG_ARIMA_Q).append("=").append(coefficients.replaceAll(",", ";"));
+        modelParams.append(" : ").append(CFG_ARIMA_Q).append("=").append(sanitiseParam(coefficients));
         if (coefficients.equalsIgnoreCase("none")) {
             maTerms = Collections.emptyList();
         } else {
@@ -92,6 +92,14 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
 
         constant = conf.getDouble(CFG_ARIMA_C, 0.0);
         modelParams.append(" : ").append(CFG_ARIMA_C).append("=").append(constant);
+
+        // from other steps
+        modelParams.append(" : ").append(CFG_ARIMA_D).append("=")
+                .append(conf.get(CFG_ARIMA_D)).append(" : ")
+                .append(CFG_TRANSFORM_DIFFERENCING).append("=")
+                .append(sanitiseParam(conf.get(CFG_TRANSFORM_DIFFERENCING, "")))
+                .append(CFG_ZERO_TRANSFORM).append("=")
+                .append(conf.getBoolean(CFG_ZERO_TRANSFORM, false));
 
         valueWindow = new ArrayDeque<>();
         errorWindow = new ArrayDeque<>();
@@ -113,6 +121,9 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
         return terms;
     }
 
+    private String sanitiseParam(String param) {
+        return param.replaceAll(",", ";");
+    }
 
     @Override
     protected void reduce(CompositeKey key, Iterable<TimeSeriesData> values, Context context) throws IOException, InterruptedException {
