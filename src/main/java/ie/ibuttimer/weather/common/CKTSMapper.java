@@ -133,7 +133,11 @@ public class CKTSMapper extends TableMapper<CompositeKey, TimeSeriesData> {
                         colVal.ifPresent(v -> {
                             Value val = null;
                             if (v instanceof String) {
-                                val = Value.of(Float.parseFloat((String) v));
+                                if (StringUtils.isEmpty((String)v)) {
+                                    logger.warn(String.format("Empty string for column %s at %s", columnName, dateTime));
+                                } else {
+                                    val = Value.of((String) v, Float.class, null, logger.logger());
+                                }
                             } else if (v instanceof Float) {
                                 val = Value.of(v);
                             } else if (v instanceof Double) {
