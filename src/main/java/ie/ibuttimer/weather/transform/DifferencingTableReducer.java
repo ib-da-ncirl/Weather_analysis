@@ -22,6 +22,7 @@
 
 package ie.ibuttimer.weather.transform;
 
+import com.google.common.collect.Lists;
 import ie.ibuttimer.weather.analysis.StatsAccumulator;
 import ie.ibuttimer.weather.common.AbstractTableReducer;
 import ie.ibuttimer.weather.common.CompositeKey;
@@ -36,9 +37,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static ie.ibuttimer.weather.Constants.*;
 import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
@@ -74,24 +73,26 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
                 this.diffTypeName = splits[0];
                 int value = Integer.parseInt(splits[1]);
                 if (splits[0].equalsIgnoreCase("season")) {
-                    seasonal = value;
-                    differencing = 1;
-                } else {
-                    differencing = value;
-                    seasonal = 1;
+                    seasonal = value;   // seasonal width
+                    differencing = 1;   // just 1 diff run
+                } else {    // step
+                    differencing = value;   // multiple diff run
+                    seasonal = 1;           // width of 1
                 }
             } else {
                 throw new IllegalArgumentException("Unrecognised " + CFG_TRANSFORM_DIFFERENCING + "argument: " + diffSetting);
             }
         }
+
+        cacheList = Lists.newArrayList(new Cache(0, 0));    // 1st is just pass-through
         if (differencing <= 0 && seasonal <= 0) {
-            cacheList = Arrays.asList();
-            statsAccumulators = new StatsAccumulator[0];
+            statsAccumulators = new StatsAccumulator[1];    // stats for pass-through
         } else {
-            cacheList = Arrays.asList(new Cache[differencing]);
-            statsAccumulators = new StatsAccumulator[differencing];
-            for (int i = 0; i < differencing; ++i) {
-                cacheList.set(i, new Cache(i * seasonal, seasonal));
+            statsAccumulators = new StatsAccumulator[differencing + 1]; // lags + pass-through
+            for (int i = 0; i < statsAccumulators.length; ++i) {
+                if (i < differencing) {
+                    cacheList.add(new Cache(i * seasonal, seasonal));
+                }
                 statsAccumulators[i] = new StatsAccumulator();
             }
         }
@@ -105,13 +106,11 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
         String name = key.getMainKey();
 
         cacheList.forEach(c -> {
-            // id is trigger + 1 for differencing or cache len for seasonal
-            int id = c.prev.length == 1 ? (c.trigger + 1) : c.prev.length;
-            c.tag = getDifferenceColumnName(key, diffTypeName, id);
+            // id is cache len; 0,1,..
+            c.tag = getDifferenceColumnName(key, diffTypeName, c.prev.length);
 
-            statsAccumulators[c.trigger].setTag(c.tag);
+            statsAccumulators[c.prev.length].setTag(c.tag);
         });
-        byte[] actualColumn = getDifferenceColumnName(key, diffTypeName, 0).getBytes();
 
         values.forEach(v -> {
 
@@ -121,9 +120,7 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
             long timestamp = v.getTimestamp();
 
             String row = Utils.getRowName(key.getSubKey());
-            Put put = new Put(Bytes.toBytes(row))
-                    // actual value
-                    .addColumn(FAMILY_BYTES, actualColumn, storeValueAsString(value));
+            Put put = new Put(Bytes.toBytes(row));
 
             final double[] diffVal = new double[] {value};
             cacheList.forEach(c -> {
@@ -132,7 +129,7 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
                         put.addColumn(FAMILY_BYTES, c.tag.getBytes(), storeValueAsString(d));
                         diffVal[0] = d;
 
-                        statsAccumulators[c.trigger].addValue(d, timestamp);
+                        statsAccumulators[c.prev.length].addValue(d, timestamp);
                     });
             });
 
@@ -206,17 +203,25 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
         }
 
         Optional<Double> addValue(int step, double value) {
-            Optional<Double> difference = Optional.empty();
-            if (step == trigger) {
-                prev[next_idx()] = value;
-            } else if (step > trigger) {
-                if (!open) {
-                    open = (saveIdx == prev.length - 1);
+            Optional<Double> difference;
+            if (prev.length == 0) {
+                // pass-through
+                difference = Optional.of(value);
+            } else {
+                difference = Optional.empty();
+                if (step == trigger) {
+                    // triggered so just save value
+                    prev[next_idx()] = value;
+                } else if (step > trigger) {
+                    if (!open) {
+                        // open if cache full
+                        open = (saveIdx == prev.length - 1);
+                    }
+                    if (open) {
+                        difference = Optional.of(value - prev[readIdx]);
+                    }
+                    prev[next_idx()] = value;
                 }
-                if (open) {
-                    difference = Optional.of(value - prev[readIdx]);
-                }
-                prev[next_idx()] = value;
             }
             return difference;
         }
