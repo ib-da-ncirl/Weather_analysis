@@ -108,6 +108,10 @@ public class SmaReducerEngine<KEYIN, VALUEIN, KEYOUT, VALUEOUT> {
         return sum/count;
     }
 
+    public String getParams() {
+        return "windowSize=" + windowSize;
+    }
+
     /**
      * Callback interface
      * @param <KEYIN>

@@ -111,10 +111,10 @@ public abstract class AbstractDriver implements IDriver {
         return Pair.of(resultCode.get(), map);
     }
 
-    public HashBasedTable<String, String, Value> loadStats(Hbase hbase, JobConfig jobCfg, String tableName,
-                                                           String matchRegex, List<String> stats) throws IOException {
+    public static HashBasedTable<String, String, Value> loadStats(Hbase hbase, JobConfig jobCfg, String tableName,
+                                                                  String matchRegex, List<String> stats) throws IOException {
         Map<String, DataTypes> columns = Maps.newHashMap();
-        stats.forEach(x -> columns.put(x, DataTypes.STRING));   // analysis table values are stored as strings
+        stats.forEach(x -> columns.put(x, DataTypes.STRING));   // table values are stored as strings
         return hbase.read(tableName, initScan(jobCfg, EnableStartStop.IGNORE), columns, matchRegex);
     }
 
@@ -156,7 +156,7 @@ public abstract class AbstractDriver implements IDriver {
     }
 
 
-    protected Hbase hbaseConnection(JobConfig jobCfg) {
+    protected static Hbase hbaseConnection(JobConfig jobCfg) {
         return Hbase.of(jobCfg.getProperty(CFG_HBASE_RESOURCE, DFLT_HBASE_RESOURCE));
     }
 

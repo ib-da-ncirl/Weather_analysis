@@ -24,17 +24,24 @@ package ie.ibuttimer.weather.arima;
 
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Lists;
-import ie.ibuttimer.weather.common.*;
+import ie.ibuttimer.weather.common.AbstractDriver;
+import ie.ibuttimer.weather.common.CKTSMapper;
+import ie.ibuttimer.weather.common.CompositeKey;
+import ie.ibuttimer.weather.common.TimeSeriesData;
 import ie.ibuttimer.weather.hbase.Hbase;
 import ie.ibuttimer.weather.hbase.TypeMap;
 import ie.ibuttimer.weather.misc.*;
 import ie.ibuttimer.weather.transform.DifferencingDriver;
 import ie.ibuttimer.weather.transform.TransformDriver;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hbase.thirdparty.org.apache.commons.collections4.list.TreeList;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -76,10 +83,10 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
             String stepOutTable = map.get(CFG_ARIMA_DIFFERENCING_TABLE);
             List<String> statsList = Collections.EMPTY_LIST;
             List<String> targetRegexList = Collections.EMPTY_LIST;
+            Hbase hbase = null;
 
             boolean in_progress = true;
             for (int step = 0; in_progress && step < 3; ++step) {
-                Hbase hbase = null;
 
                 switch (step) {
                     case 0:
@@ -208,6 +215,10 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
                         break;
                 }
             }
+
+            if (resultCode == STATUS_SUCCESS) {
+                saveResults(jobCfg, stepOutTable);
+            }
         }
         return resultCode;
     }
@@ -216,10 +227,61 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
         AtomicReference<Optional<String>> name = new AtomicReference<>(Optional.empty());
         // identify target column
         stats.rowKeySet().stream()
-                .filter(r -> r.matches(regex))
-                .findFirst()
-                .ifPresent(r -> name.set(Optional.of(r.substring(STATS_ROW_MARK.length()))));
+            .filter(r -> r.matches(regex))
+            .findFirst()
+            .ifPresent(r -> name.set(Optional.of(r.substring(STATS_ROW_MARK.length()))));
         return name.get();
     }
 
+    public static void saveResults(JobConfig jobCfg, String table) throws IOException {
+        Hbase hbase = null;
+        try {
+            hbase = hbaseConnection(jobCfg);
+
+            // add stats
+            HashBasedTable<String, String, Value> stats = loadStats(hbase, jobCfg, table,
+                    STATS_ROW_MARK_REGEX,
+                    Arrays.asList(MSE, MAAPE, AIC_MSE, AIC_MAAPE, PARAMS));
+
+            String outPath = jobCfg.getProperty(CFG_ARIMA_PATH_ROOT, "");
+            if (!StringUtils.isEmpty(outPath)) {
+                TreeList<String> columns = new TreeList<>();
+                stats.columnKeySet().forEach(columns::add);
+
+                StringBuffer sb = new StringBuffer();
+                List<String> contents = Lists.newArrayList();
+                File file = FileUtils.getFile(outPath);
+                if (!file.exists()) {
+                    // add heading
+                    columns.forEach(col -> {
+                        if (sb.length() > 0) {
+                            sb.append(',');
+                        }
+                        sb.append(col);
+                    });
+                    contents.add(sb.toString());
+                }
+
+                stats.rowKeySet().forEach(row -> {
+                    sb.delete(0, sb.length());
+                    columns.forEach(col -> {
+                        if (sb.length() > 0) {
+                            sb.append(',');
+                        }
+                        sb.append(stats.get(row, col).stringValue());
+                    });
+                    contents.add(sb.toString());
+                });
+
+                FileUtils.writeLines(FileUtils.getFile(outPath), contents, true);
+
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (hbase != null) {
+                hbase.closeConnection();
+            }
+        }
+    }
 }

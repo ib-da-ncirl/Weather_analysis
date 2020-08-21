@@ -38,6 +38,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import java.io.IOException;
 
 import static ie.ibuttimer.weather.Constants.*;
+import static ie.ibuttimer.weather.arima.ArimaDriver.saveResults;
 
 public class SmaDriver extends AbstractDriver implements IDriver {
 
@@ -55,6 +56,7 @@ public class SmaDriver extends AbstractDriver implements IDriver {
         Pair<Integer, String> properties = getRequiredStringProperty(jobCfg, CFG_SMA_IN_TABLE);
 
         int resultCode = properties.getLeft();
+        String outTable = jobCfg.getProperty(CFG_SMA_REDUCE_TABLE, DFLT_SMA_REDUCE_TABLE);
 
         if (resultCode == STATUS_SUCCESS) {
 
@@ -76,14 +78,11 @@ public class SmaDriver extends AbstractDriver implements IDriver {
 
             } else if (reduceMode.equalsIgnoreCase(SMA_TABLE_REDUCE_MODE)) {
 
-                TableName table = TableName.valueOf(jobCfg.getProperty(CFG_SMA_REDUCE_TABLE, DFLT_SMA_REDUCE_TABLE));
+                TableName table = TableName.valueOf(outTable);
 
                 Hbase hbase = null;
                 try {
-                    hbase = Hbase.of(jobCfg.getProperty(CFG_HBASE_RESOURCE, DFLT_HBASE_RESOURCE));
-                    if (!hbase.tableExists(table)) {
-                        hbase.createTable(table.getNameAsString(), FAMILY);
-                    }
+                    hbase = createTable(jobCfg, table.getNameAsString());
                 } finally {
                     if (hbase != null) {
                         hbase.closeConnection();
@@ -101,6 +100,10 @@ public class SmaDriver extends AbstractDriver implements IDriver {
 
             if (resultCode == STATUS_SUCCESS) {
                 resultCode = startJob(job, jobCfg);
+
+                if (resultCode == STATUS_SUCCESS) {
+                    saveResults(jobCfg, outTable);
+                }
             }
         }
 

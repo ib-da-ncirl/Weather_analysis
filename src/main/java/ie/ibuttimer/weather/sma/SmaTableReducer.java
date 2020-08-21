@@ -36,7 +36,6 @@ import org.apache.hadoop.io.Text;
 import java.io.IOException;
 
 import static ie.ibuttimer.weather.Constants.FAMILY_BYTES;
-import static ie.ibuttimer.weather.Constants.STATS_ROW_MARK_REGEX;
 import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
 
 /**
@@ -64,7 +63,7 @@ public class SmaTableReducer extends AbstractTableReducer<CompositeKey, TimeSeri
         engine.reduce(key, values, context);
 
         // only param is window size
-        addModelMetrics(context, key.getMainKey(), errorTracker,1);
+        addModelMetrics(context, key.getMainKey(), errorTracker,1, engine.getParams());
     }
 
     @Override

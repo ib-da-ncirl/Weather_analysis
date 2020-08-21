@@ -41,14 +41,15 @@ public abstract class AbstractTableReducer<KEYIN, VALUEIN, KEYOUT> extends Table
         }
     }
 
-    protected void addModelMetrics(Context context, String key, ErrorTracker errorTracker, int numParams) {
+    protected void addModelMetrics(Context context, String key, ErrorTracker errorTracker, int numParams, String params) {
         double mse = errorTracker.getMSE();
         double maape = errorTracker.getMAAPE();
         Put put = new Put(Bytes.toBytes(STATS_ROW_MARK + key))
-                .addColumn(FAMILY_BYTES, MSE, storeValueAsString(mse))
-                .addColumn(FAMILY_BYTES, MAAPE, storeValueAsString(maape))
-                .addColumn(FAMILY_BYTES, AIC_MSE, storeValueAsString(errorTracker.getAIC(numParams, mse)))
-                .addColumn(FAMILY_BYTES, AIC_MAAPE, storeValueAsString(errorTracker.getAIC(numParams, maape)));
+                .addColumn(FAMILY_BYTES, MSE.getBytes(), storeValueAsString(mse))
+                .addColumn(FAMILY_BYTES, MAAPE.getBytes(), storeValueAsString(maape))
+                .addColumn(FAMILY_BYTES, AIC_MSE.getBytes(), storeValueAsString(errorTracker.getAIC(numParams, mse)))
+                .addColumn(FAMILY_BYTES, AIC_MAAPE.getBytes(), storeValueAsString(errorTracker.getAIC(numParams, maape)))
+                .addColumn(FAMILY_BYTES, PARAMS.getBytes(), storeValueAsString(params));
 
         write(context, put);
     }

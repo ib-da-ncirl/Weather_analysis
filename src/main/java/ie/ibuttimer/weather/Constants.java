@@ -63,10 +63,11 @@ public class Constants {
     public static final byte[] MOVING_AVG = "moving_avg".getBytes();
     public static final byte[] ERROR = "error".getBytes();
     public static final byte[] SQ_ERROR = "sq_error".getBytes();
-    public static final byte[] MSE = "mse".getBytes();
-    public static final byte[] MAAPE = "maape".getBytes();
-    public static final byte[] AIC_MSE = "aic_mse".getBytes();
-    public static final byte[] AIC_MAAPE = "aic_maape".getBytes();
+    public static final String MSE = "mse";
+    public static final String MAAPE = "maape";
+    public static final String AIC_MSE = "aic_mse";
+    public static final String AIC_MAAPE = "aic_maape";
+    public static final String PARAMS = "params";
 
     public static String stationColumn(String column, int station) {
         return column + "_" + Integer.toString(station);
@@ -174,6 +175,7 @@ public class Constants {
 
     public static final String CFG_IN_PATH_ROOT = "global.in_path_root";
     public static final String CFG_OUT_PATH_ROOT = "global.out_path_root";
+    public static final String CFG_ARIMA_PATH_ROOT = "arima.out_path";
 
     public static final String CFG_MODE = "mode";                           // run mode; 'dev' or 'run'
     public static final String CFG_CLR_LAST_RESULT = "clear_last_result";   // clear last result; ignored in run mode

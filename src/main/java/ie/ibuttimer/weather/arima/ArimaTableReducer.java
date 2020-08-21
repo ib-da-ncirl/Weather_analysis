@@ -65,15 +65,21 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
 
     private ErrorTracker errorTracker;
 
+    private StringBuffer modelParams;
+
     @Override
     protected void setup(Context context) throws IOException, InterruptedException {
 
         Configuration conf = context.getConfiguration();
 
+        modelParams = new StringBuffer();
+
         String coefficients = conf.get(CFG_ARIMA_P);
         arTerms = Arrays.asList(getCoefficients(coefficients));
+        modelParams.append(CFG_ARIMA_P).append("=").append(coefficients.replaceAll(",", ";"));
 
         coefficients = conf.get(CFG_ARIMA_Q);
+        modelParams.append(" : ").append(CFG_ARIMA_Q).append("=").append(coefficients.replaceAll(",", ";"));
         if (coefficients.equalsIgnoreCase("none")) {
             maTerms = Collections.emptyList();
         } else {
@@ -85,6 +91,7 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
         }
 
         constant = conf.getDouble(CFG_ARIMA_C, 0.0);
+        modelParams.append(" : ").append(CFG_ARIMA_C).append("=").append(constant);
 
         valueWindow = new ArrayDeque<>();
         errorWindow = new ArrayDeque<>();
@@ -160,7 +167,7 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
         });
 
         addModelMetrics(context, key.getMainKey(), errorTracker,
-                arTerms.size() + maTerms.size() + (constant == 0 ? 0 : 1));
+                arTerms.size() + maTerms.size() + (constant == 0 ? 0 : 1), modelParams.toString());
     }
 
     @Override
