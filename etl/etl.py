@@ -195,9 +195,9 @@ def get_contents_or_path(uri: str, end_on_err=True) -> Tuple[Union[io.StringIO, 
             file_path = get_file_path(uri)
             msg = None
             status = HTTPStatus.NOT_FOUND
-            if not os.path.exists(file_path):
+            if not os.path.exists(file_path[len(FILE_URI):]):
                 msg = f"'{file_path}' does not exist"
-            elif not os.path.isfile(file_path):
+            elif not os.path.isfile(file_path[len(FILE_URI):]):
                 msg = f"'{file_path}' is not a file"
             else:
                 filepath_or_buffer = file_path
@@ -443,6 +443,8 @@ def load_station_data(base_uri: str, filename: Union[ReadParam, list], args: dic
     for entry in file_list:
         zip_url = f"{base_uri}{entry.filename}.zip"
         read_from, result = get_filepath_or_buffer(zip_url, end_on_err=False)
+        if read_from.startswith(FILE_URI):
+            read_from = read_from[len(FILE_URI):]
         if result.status == HTTPStatus.OK:
             with ZipFile(read_from) as zipped:
                 print(f"Retrieved {zip_url}")
@@ -677,7 +679,7 @@ def analyse_station_data(base_uri, station_id: int, station_name: str, read_args
                 fout.write("station_id,station_name,filename,"
                            "min_date,max_date,"
                            "columns,type,"
-                           "col_na_count,col_null_count,col_empty_count\n")
+                           "col_na_count,col_null_count,col_empty_count,missing_lines\n")
 
             na_str = ''
             null_str = ''
@@ -691,6 +693,15 @@ def analyse_station_data(base_uri, station_id: int, station_name: str, read_args
                 match = re.match(r"^(.*)_\d+$", col)
                 if match:
                     columns_str = f"{columns_str}{';' if len(columns_str) else ''}{match.group(1)}"
+
+            missing_lines = ''
+            for i in range(1, len(df[DATA_DATE])):
+                hr_before = df[DATA_DATE].iloc[i-1] + pd.Timedelta(hours=1)
+                if df[DATA_DATE].iloc[i] != hr_before:
+                    if len(missing_lines) > 0:
+                        missing_lines += ','
+                    missing_lines += f"{hr_before}"
+
             # get file type
             match = re.match(r"([A-Za-z]+)\d+", read_args['filename'])
             typ = match.group(1) if match else ''
@@ -698,7 +709,7 @@ def analyse_station_data(base_uri, station_id: int, station_name: str, read_args
             fout.write(f"{station_id},{station_name},{read_args['filename']},"
                        f"{df[DATA_DATE].min()},{df[DATA_DATE].max()},"
                        f"{columns_str},{typ},"
-                       f"{na_str},{null_str},{empty_str}\n")
+                       f"{na_str},{null_str},{empty_str},{missing_lines}\n")
 
 
 def station_analysis_summary(args: dict):
