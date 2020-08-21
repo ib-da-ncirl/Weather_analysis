@@ -22,8 +22,10 @@
 
 package ie.ibuttimer.weather.sma;
 
+import ie.ibuttimer.weather.Constants;
 import ie.ibuttimer.weather.common.AbstractTableReducer;
 import ie.ibuttimer.weather.common.CompositeKey;
+import ie.ibuttimer.weather.common.ErrorTracker;
 import ie.ibuttimer.weather.common.TimeSeriesData;
 import ie.ibuttimer.weather.misc.Utils;
 import org.apache.hadoop.hbase.client.Mutation;
@@ -34,6 +36,7 @@ import org.apache.hadoop.io.Text;
 import java.io.IOException;
 
 import static ie.ibuttimer.weather.Constants.FAMILY_BYTES;
+import static ie.ibuttimer.weather.Constants.STATS_ROW_MARK_REGEX;
 import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
 
 /**
@@ -46,22 +49,13 @@ public class SmaTableReducer extends AbstractTableReducer<CompositeKey, TimeSeri
 
     private SmaReducerEngine<CompositeKey, TimeSeriesData, Text, Mutation> engine;
 
-    private double sqErrorSum;
-    private double absErrorSum;
-
-    public static final byte[] ACTUAL = "actual".getBytes();
-    public static final byte[] MOVING_AVG = "moving_avg".getBytes();
-    public static final byte[] ERROR = "error".getBytes();
-    public static final byte[] SQ_ERROR = "sq_error".getBytes();
-    public static final byte[] MSE = "mse".getBytes();
-    public static final byte[] MAAPE = "maape".getBytes();
+    private ErrorTracker errorTracker;
 
     @Override
     protected void setup(Context context) throws IOException, InterruptedException {
 
         this.engine = new SmaReducerEngine<>(context.getConfiguration(),  this);
-        this.sqErrorSum = 0;
-        this.absErrorSum = 0;
+        this.errorTracker = new ErrorTracker();
     }
 
     @Override
@@ -69,11 +63,9 @@ public class SmaTableReducer extends AbstractTableReducer<CompositeKey, TimeSeri
 
         engine.reduce(key, values, context);
 
-        double mse = sqErrorSum/engine.getCount();
-        double mape = absErrorSum/engine.getCount();
-        Put put = new Put(Bytes.toBytes(key.getMainKey()))
-                .addColumn(FAMILY_BYTES, MSE, storeValueAsString(mse))
-                .addColumn(FAMILY_BYTES, MAAPE, storeValueAsString(mape));
+        Put put = new Put(Bytes.toBytes(STATS_ROW_MARK_REGEX + key.getMainKey()))
+                .addColumn(FAMILY_BYTES, Constants.MSE, storeValueAsString(errorTracker.getMSE()))
+                .addColumn(FAMILY_BYTES, Constants.MAAPE, storeValueAsString(errorTracker.getMAAPE()));
 
         write(context, put);
     }
@@ -82,23 +74,15 @@ public class SmaTableReducer extends AbstractTableReducer<CompositeKey, TimeSeri
     public void reduce(CompositeKey key, String dateTime, double value, double movingAvg, double error, Context context)
                                                                     throws IOException, InterruptedException {
 
-        double sqError = Math.pow(error, 2);
-
         String row = Utils.getRowName(key.getSubKey());
         Put put = new Put(Bytes.toBytes(row))
-            .addColumn(FAMILY_BYTES, ACTUAL, storeValueAsString(value))
-            .addColumn(FAMILY_BYTES, MOVING_AVG, storeValueAsString(movingAvg))
-            .addColumn(FAMILY_BYTES, ERROR, storeValueAsString(error))
-            .addColumn(FAMILY_BYTES, SQ_ERROR, storeValueAsString(sqError));
+            .addColumn(FAMILY_BYTES, Constants.ACTUAL, storeValueAsString(value))
+            .addColumn(FAMILY_BYTES, Constants.MOVING_AVG, storeValueAsString(movingAvg))
+            .addColumn(FAMILY_BYTES, Constants.ERROR, storeValueAsString(error))
+            .addColumn(FAMILY_BYTES, Constants.SQ_ERROR, storeValueAsString(Math.pow(error, 2)));
 
-        sqErrorSum += sqError;
-        double percent;
-        if (error == 0.0 && value == 0.0) {
-            percent = 0;    // special case; 0.0/0.0 = Nan
-        } else {
-            percent = Math.abs(error)/Math.abs(value);
-        }
-        // mean arctangent absolute percentage error (MAAPE); has divide by zero like MAPE
-        absErrorSum += Math.atan(percent);
+        errorTracker.addError(value, error);
+
+        write(context, put);
     }
 }

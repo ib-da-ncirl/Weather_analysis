@@ -23,6 +23,7 @@
 package ie.ibuttimer.weather.transform;
 
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Lists;
 import ie.ibuttimer.weather.common.AbstractDriver;
 import ie.ibuttimer.weather.common.AbstractTableReducer;
 import ie.ibuttimer.weather.common.CompositeKey;
@@ -37,12 +38,9 @@ import org.apache.hadoop.io.Text;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static ie.ibuttimer.weather.Constants.*;
-import static ie.ibuttimer.weather.Constants.MEAN;
 import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
 
 /**
@@ -65,6 +63,8 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
 
     private List<Accumulator> accumulators;
 
+    boolean zeroTransform;
+
     @Override
     protected void setup(Context context) throws IOException, InterruptedException {
 
@@ -72,28 +72,26 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
 
         stats = AbstractDriver.decodeStats(conf);
 
+        zeroTransform = conf.getBoolean(CFG_ZERO_TRANSFORM, false);
+
         // lag in hours; in the form '1', '1,2,3' or range '1-10'
         String lag = conf.get(CFG_TRANSFORM_LAG, "");
-        if (StringUtils.isEmpty(lag)) {
-            accumulators = Collections.emptyList();
-        } else {
+        accumulators = Lists.newArrayList(genLagged("0"));
+        if (!StringUtils.isEmpty(lag)) {
             if (lag.contains(",")) {
                 String[] splits = lag.split(",");
-                accumulators = Arrays.asList(new Accumulator[splits.length]);
                 for (int i = 0; i < splits.length; ++i) {
-                    accumulators.set(i, genLagged(splits[i]));
+                    accumulators.add(genLagged(splits[i]));
                 }
             } else if (lag.contains("-")) {
                 String[] splits = lag.split("-");
                 long start = Long.parseLong(splits[0]);
                 long end = Long.parseLong(splits[1]);
-                accumulators = Arrays.asList(new Accumulator[(int)(end - start + 1)]);
                 for (int i = (int)start; i <= (int)end; ++i) {
-                    accumulators.set(i - 1, genLagged(Integer.toString(i)));
+                    accumulators.add(genLagged(Integer.toString(i)));
                 }
             } else {
-                accumulators = Arrays.asList(new Accumulator[1]);
-                accumulators.set(0, genLagged(lag));
+                accumulators.add(0, genLagged(lag));
             }
         }
     }
@@ -120,23 +118,25 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
             // CompositeKey(column name, timestamp), TimeSeriesData(timestamp, float value)
 
             double value = v.getValue().doubleValue();
-            double zeroTransform = value - mean;
+            double useValue = value;
+            if (zeroTransform) {
+                useValue -= mean;
+            }
 
             long timestamp = v.getTimestamp();
             String row = Utils.getRowName(key.getSubKey());
-            Put put = new Put(Bytes.toBytes(row))
-                    // zero transformed value
-                    .addColumn(FAMILY_BYTES, actualColumn, storeValueAsString(zeroTransform));
+            Put put = new Put(Bytes.toBytes(row));
 
+            double finalUseValue = useValue;
             accumulators.forEach(a -> {
-                a.meanDist += Math.pow(zeroTransform, 2);   // sq(y - y_bar)
+                a.meanDist += Math.pow(finalUseValue, 2);   // sq(y - y_bar)
                 a.lagged.addValue(timestamp, value)
                         .ifPresent(lv -> {
-                            // normalised lag value
+                            // zero transformed lag value
                             double zeroTransformLag = lv - mean;
                             put.addColumn(FAMILY_BYTES, a.tag.getBytes(), storeValueAsString(zeroTransformLag));
 
-                            a.diffProd += (zeroTransform * zeroTransformLag);
+                            a.diffProd += (finalUseValue * zeroTransformLag);
                         });
                 ++a.count;
             });

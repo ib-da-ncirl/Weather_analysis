@@ -20,46 +20,38 @@
  *  SOFTWARE.
  */
 
-package ie.ibuttimer.weather.transform;
+package ie.ibuttimer.weather.common;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Optional;
+public class ErrorTracker {
 
-public class Lagged<T> {
+    private double sqErrorSum;
+    private double absErrorSum;
+    private long count;
 
-    private long lag;
-    private Deque<T> laggedValues;
-    private long start;
-
-    public Lagged(long lag) {
-        this.lag = lag;
-        this.laggedValues = new ArrayDeque<>();
-        this.start = Long.MIN_VALUE;
+    public ErrorTracker() {
+        this.sqErrorSum = 0.0;
+        this.absErrorSum = 0.0;
+        this.count = 0;
     }
 
-
-    public Optional<T> addValue(long marker, T value) {
-        Optional<T> lagValue = Optional.empty();
-
-        if (start == Long.MIN_VALUE) {
-            start = marker;
+    public void addError(double value, double error) {
+        sqErrorSum += Math.pow(error, 2);
+        double percent;
+        if (error == 0.0 && value == 0.0) {
+            percent = 0;    // special case; 0.0/0.0 = Nan
+        } else {
+            percent = Math.abs(error)/Math.abs(value);
         }
-        if ((lag > 0) && (marker - lag >= start)) {
-            lagValue = Optional.of(laggedValues.removeFirst());
-        } else if (lag == 0) {
-            lagValue = Optional.of(value);
-        }
-        laggedValues.addLast(value);
-
-        return lagValue;
+        // mean arctangent absolute percentage error (MAAPE); has no divide by zero issue like MAPE
+        absErrorSum += Math.atan(percent);
     }
 
-    public long getLag() {
-        return lag;
+    public double getMSE() {
+        return sqErrorSum/count;
     }
 
-    public void setLag(long lag) {
-        this.lag = lag;
+    public double getMAAPE() {
+        return absErrorSum/count;
     }
+
 }

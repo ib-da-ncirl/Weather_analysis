@@ -58,6 +58,14 @@ public class Constants {
     public static final String AUTOCOVARIANCE = "autocovariance";
     public static final String AUTOCORRELATION = "autocorrelation";
 
+    public static final byte[] ACTUAL = "actual".getBytes();
+    public static final byte[] PREDICTION = "prediction".getBytes();
+    public static final byte[] MOVING_AVG = "moving_avg".getBytes();
+    public static final byte[] ERROR = "error".getBytes();
+    public static final byte[] SQ_ERROR = "sq_error".getBytes();
+    public static final byte[] MSE = "mse".getBytes();
+    public static final byte[] MAAPE = "maape".getBytes();
+
     public static String stationColumn(String column, int station) {
         return column + "_" + Integer.toString(station);
     }
@@ -156,6 +164,8 @@ public class Constants {
     public static final String CFG_ARIMA_LAGS_TABLE = "arima_lags_table";
     public static final String CFG_ARIMA_OUT_TABLE = "arima_out_table";
 
+    public static final String CFG_ZERO_TRANSFORM = "zero_transform";
+
     public static final String CFG_SMA_IN_TABLE = "sma_in_table";
 
     public static final String CFG_KEY_TYPE_MAP = "key_type_map";
@@ -192,9 +202,8 @@ public class Constants {
 
     public static final String CFG_ARIMA_P = "arima_p";                   // number of preceding (“lagged”) values
     public static final String CFG_ARIMA_D = "arima_d";                   // number of times that the data have to be “differenced” to produce a stationary signal
-    public static final String CFG_ARIMA_Q = "arima_p";                   // number of preceding/lagged values for the error term
+    public static final String CFG_ARIMA_Q = "arima_q";                   // number of preceding/lagged values for the error term
     public static final String CFG_ARIMA_C = "arima_c";                   // constant term
-    public static final String CFG_ARIMA_E = "arima_e";                   // error term
 
     public static final String STATS_ROW_MARK = "#";
     public static final String STATS_ROW_MARK_REGEX = "^"+STATS_ROW_MARK+".*";
