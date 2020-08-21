@@ -49,10 +49,10 @@ public class AppLogger {
     }
 
     public void error(Object message) {
-        logger.warn("Error: " + message);
+        logger.error("Error: " + message);
     }
 
     public void error(Object message, Throwable t) {
-        logger.warn("Error: " + message, t);
+        logger.error("Error: " + message, t);
     }
 }

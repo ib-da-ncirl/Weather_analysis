@@ -208,6 +208,11 @@ public class Constants {
     public static final String STATS_ROW_MARK = "#";
     public static final String STATS_ROW_MARK_REGEX = "^"+STATS_ROW_MARK+".*";
 
+
+    public static final String LAG = "lag";
+    public static final String STEP = "step";
+    public static final String SEASON = "season";
+
     private Constants() {
         // can't instantiate class
     }

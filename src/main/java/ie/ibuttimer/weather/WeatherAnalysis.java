@@ -175,7 +175,7 @@ public class WeatherAnalysis extends Configured implements Tool {
             help();
             resultCode = STATUS_FAIL;
         } catch (Exception e) {
-            logger.warn(String.format("%s%n%n", e.getMessage()));
+            logger.error(String.format("%s%n%n", e.getMessage()), e);
             resultCode = STATUS_FAIL;
         }
 

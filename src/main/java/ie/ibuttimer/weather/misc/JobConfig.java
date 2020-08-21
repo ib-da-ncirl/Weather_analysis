@@ -131,6 +131,10 @@ public class JobConfig {
         return Double.parseDouble(properties.getProperty(key, Double.toString(defaultValue)));
     }
 
+    public boolean getProperty(String key, boolean defaultValue) {
+        return Boolean.parseBoolean(properties.getProperty(key, Boolean.toString(defaultValue)));
+    }
+
     public void setProperty(String key, String value) {
         properties.setProperty(key, value);
     }
@@ -149,6 +153,10 @@ public class JobConfig {
 
     public void setProperty(String key, double value) {
         setProperty(key, Double.toString(value));
+    }
+
+    public void setProperty(String key, boolean value) {
+        setProperty(key, Boolean.toString(value));
     }
 
     public LocalDateTime getProperty(String key, LocalDateTime defaultValue, DateTimeFormatter formatter) {

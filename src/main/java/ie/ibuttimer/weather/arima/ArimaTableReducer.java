@@ -22,7 +22,6 @@
 
 package ie.ibuttimer.weather.arima;
 
-import ie.ibuttimer.weather.Constants;
 import ie.ibuttimer.weather.common.AbstractTableReducer;
 import ie.ibuttimer.weather.common.CompositeKey;
 import ie.ibuttimer.weather.common.ErrorTracker;
@@ -37,7 +36,6 @@ import org.apache.hadoop.io.Text;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
-import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -45,14 +43,10 @@ import static ie.ibuttimer.weather.Constants.*;
 import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
 
 /**
- * Reducer to perform statistical analysis
+ * Reducer to perform ARIMA
  *
- * - Calculated mean and standard deviation based on
- *   https://learning.oreilly.com/library/view/Art+of+Computer+Programming,+Volume+2,+The:+Seminumerical+Algorithms/9780321635778/ch04.html#page_232
- *
- * - Produces a lagged output
- * - Calculates the auto covariance
- * - Calculates the auto correlation
+ * - Produces predicted output
+ * - Calculates the MSE & MAAPE
  */
 public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSeriesData, Text> {
 
@@ -86,6 +80,10 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
             maTerms = Arrays.asList(getCoefficients(coefficients));
         }
 
+        if (maTerms.size() > arTerms.size()) {
+            throw new IllegalArgumentException("Number of error coefficients exceed those of lag");
+        }
+
         constant = conf.getDouble(CFG_ARIMA_C, 0.0);
 
         valueWindow = new ArrayDeque<>();
@@ -113,6 +111,7 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
     protected void reduce(CompositeKey key, Iterable<TimeSeriesData> values, Context context) throws IOException, InterruptedException {
 
         AtomicLong count = new AtomicLong();
+        boolean errorTerms = (maTerms.size() > 0);
 
         values.forEach(v -> {
 
@@ -120,42 +119,42 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
 
             double value = v.getValue().doubleValue();
 
+            if (count.get() >= 1) {  // enough values to start predicting?
+
+                // YUCK not very efficient but quick and dirty
+                Double[] valueArray = makeArray(valueWindow, arTerms.size());
+                Double[] errorArray = makeArray(errorWindow, maTerms.size());
+
+                double prediction = constant +
+                        arTerms.stream().mapToDouble(ar ->
+                                // count - 1 so predictions start once have one previous
+                                ar.apply(valueArray, count.get() - 1)).sum();
+                double errors = maTerms.stream().mapToDouble(ar ->
+                            // count - 1 so predictions start once have one previous
+                            ar.apply(errorArray, count.get() - 1)).sum();
+                // using convention ma coefficients are subtracted
+                prediction -= errors;
+
+                double error = value - prediction;
+                errorTracker.addError(value, error);
+                if (errorTerms) {
+                    makeSpace(errorWindow, errorArray.length);
+                    errorWindow.addFirst(error);
+                }
+
+                makeSpace(valueWindow, valueArray.length);
+
+                String row = Utils.getRowName(key.getSubKey());
+                Put put = new Put(Bytes.toBytes(row))
+                        .addColumn(FAMILY_BYTES, ACTUAL, storeValueAsString(value))
+                        .addColumn(FAMILY_BYTES, PREDICTION, storeValueAsString(prediction))
+                        .addColumn(FAMILY_BYTES, ERROR, storeValueAsString(error))
+                        .addColumn(FAMILY_BYTES, SQ_ERROR, storeValueAsString(Math.pow(error, 2)));
+
+                write(context, put);
+            }
+
             valueWindow.addFirst(value);
-
-            // YUCK not very efficient but quick and dirty
-            Double[] valueArray = valueWindow.toArray(new Double[arTerms.size()]);
-            Double[] errorArray = errorWindow.toArray(new Double[maTerms.size()]);
-
-            double prediction = constant +
-                    arTerms.stream().mapToDouble(ar -> ar.apply(valueArray, count.get())).sum();
-            double errors;
-            if (count.get() == 0) {
-                errors = 0;
-            } else {
-                errors = maTerms.stream().mapToDouble(ar -> ar.apply(errorArray, count.get())).sum();
-            }
-            // using convention ma coefficients are negative
-            prediction -= errors;
-
-            double error = value - prediction;
-            errorTracker.addError(value, error);
-
-            if ((valueWindow.size() > 0) && (valueWindow.size() == arTerms.size())) {
-                valueWindow.removeLast();
-            }
-            if ((errorWindow.size() > 0) && (errorWindow.size() == maTerms.size())) {
-                errorWindow.removeLast();
-            }
-            errorWindow.addFirst(error);
-
-            String row = Utils.getRowName(key.getSubKey());
-            Put put = new Put(Bytes.toBytes(row))
-                    .addColumn(FAMILY_BYTES, ACTUAL, storeValueAsString(value))
-                    .addColumn(FAMILY_BYTES, PREDICTION, storeValueAsString(prediction))
-                    .addColumn(FAMILY_BYTES, ERROR, storeValueAsString(error))
-                    .addColumn(FAMILY_BYTES, SQ_ERROR, storeValueAsString(Math.pow(error, 2)));
-
-            write(context, put);
 
             count.incrementAndGet();
         });
@@ -190,6 +189,24 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
                 '}';
     }
 
+    private void makeSpace(Deque<Double> deque, int max) {
+        int count = deque.size();
+        if ((count > 0) && (count == max)) {
+            deque.removeLast();
+        }
+    }
+
+    private Double[] makeArray(Deque<Double> deque, int size) {
+        Double[] array = deque.toArray(new Double[size]);
+        for (int i = 0; i < array.length; i++) {
+            if (array[i] == null) {
+                array[i] = 0.0;
+            }
+        }
+        return array;
+    }
+
+
     private static class Term {
         double coefficient;
         int index;
@@ -207,6 +224,15 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
                 val = values[index] * coefficient;
             }
             return val;
+        }
+
+        @Override
+        public String toString() {
+            return "Term{" +
+                    "coefficient=" + coefficient +
+                    ", index=" + index +
+                    ", tag='" + tag + '\'' +
+                    '}';
         }
     }
 }

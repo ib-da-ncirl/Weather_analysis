@@ -38,10 +38,12 @@ import org.apache.hadoop.io.Text;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static ie.ibuttimer.weather.Constants.*;
 import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
+import static ie.ibuttimer.weather.misc.Utils.buildTag;
 
 /**
  * Reducer to perform statistical analysis
@@ -70,9 +72,12 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
 
         Configuration conf = context.getConfiguration();
 
-        stats = AbstractDriver.decodeStats(conf);
-
         zeroTransform = conf.getBoolean(CFG_ZERO_TRANSFORM, false);
+
+        stats = null;
+        if (zeroTransform) {
+            stats = AbstractDriver.decodeStats(conf);
+        }
 
         // lag in hours; in the form '1', '1,2,3' or range '1-10'
         String lag = conf.get(CFG_TRANSFORM_LAG, "");
@@ -106,13 +111,17 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
     @Override
     protected void reduce(CompositeKey key, Iterable<TimeSeriesData> values, Context context) throws IOException, InterruptedException {
 
-        double mean = stats.get(key.getMainKey(), MEAN);
+        double mean = 0.0;
+        if (zeroTransform) {
+            mean = stats.get(key.getMainKey(), MEAN);
+        }
 
         accumulators.forEach(a -> {
             a.tag = getTransformColumnName(key, (int)a.getId());
         });
         byte[] actualColumn = getTransformColumnName(key, 0).getBytes();
 
+        double finalMean = mean;
         values.forEach(v -> {
 
             // CompositeKey(column name, timestamp), TimeSeriesData(timestamp, float value)
@@ -120,7 +129,7 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
             double value = v.getValue().doubleValue();
             double useValue = value;
             if (zeroTransform) {
-                useValue -= mean;
+                useValue -= finalMean;
             }
 
             long timestamp = v.getTimestamp();
@@ -133,10 +142,13 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
                 a.lagged.addValue(timestamp, value)
                         .ifPresent(lv -> {
                             // zero transformed lag value
-                            double zeroTransformLag = lv - mean;
-                            put.addColumn(FAMILY_BYTES, a.tag.getBytes(), storeValueAsString(zeroTransformLag));
+                            double useLagValue = lv;
+                            if (zeroTransform) {
+                                useLagValue -= finalMean;
+                            }
+                            put.addColumn(FAMILY_BYTES, a.tag.getBytes(), storeValueAsString(useLagValue));
 
-                            a.diffProd += (finalUseValue * zeroTransformLag);
+                            a.diffProd += (finalUseValue * useLagValue);
                         });
                 ++a.count;
             });
@@ -147,18 +159,24 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
         accumulators.forEach(a -> {
             // calc autocovariance
             // E(X Xt) - mean2
-            double autocovariance = (a.diffProd / a.count) - Math.pow(mean, 2);
+            double autocovariance = Double.NaN;
+            String autocovarianceDbg = "";
+            if (zeroTransform) {
+                autocovariance = (a.diffProd / a.count) - Math.pow(finalMean, 2);
+                autocovarianceDbg = String.format("autocovariance %.3f", autocovariance);
+            }
             // calc autocorrelation
             // E(X Xt) - mean2
             double autocorrelation = a.diffProd / a.meanDist;
 
-            logger.logger().info(String.format("XXX %d XXX  autocovariance %.3f   autocorrelation %.3f",
-                    a.getId(), autocovariance, autocorrelation));
+            logger.logger().info(String.format("XXX %d XXX  autocorrelation %.3f  %s",
+                    a.getId(), autocorrelation, autocovarianceDbg));
 
             Put put = new Put(Bytes.toBytes(STATS_ROW_MARK + a.tag))
-                    .addColumn(FAMILY_BYTES, AUTOCOVARIANCE.getBytes(), storeValueAsString(autocovariance))
                     .addColumn(FAMILY_BYTES, AUTOCORRELATION.getBytes(), storeValueAsString(autocorrelation));
-
+            if (zeroTransform) {
+                put.addColumn(FAMILY_BYTES, AUTOCOVARIANCE.getBytes(), storeValueAsString(autocovariance));
+            }
             write(context, put);
 
         });
@@ -169,7 +187,7 @@ public class TransformTableReducer extends AbstractTableReducer<CompositeKey, Ti
     }
 
     public static String getTransformColumnName(CompositeKey key, int id) {
-        return key.getMainKey() + "_lag_" + id;
+        return buildTag(Arrays.asList(key.getMainKey(), LAG, Integer.toString(id)));
     }
 
 

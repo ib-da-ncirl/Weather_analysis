@@ -41,6 +41,7 @@ import java.util.*;
 
 import static ie.ibuttimer.weather.Constants.*;
 import static ie.ibuttimer.weather.hbase.Hbase.storeValueAsString;
+import static ie.ibuttimer.weather.misc.Utils.buildTag;
 
 /**
  * Reducer to perform differencing
@@ -69,17 +70,21 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
         String diffSetting = conf.get(CFG_TRANSFORM_DIFFERENCING, "");
         if (!StringUtils.isEmpty(diffSetting)) {
             String[] splits = diffSetting.split(",");
-            if (splits.length == 2) {
+            boolean ok = (splits.length == 2);
+            if (ok) {
                 this.diffTypeName = splits[0];
                 int value = Integer.parseInt(splits[1]);
-                if (splits[0].equalsIgnoreCase("season")) {
+                if (splits[0].equalsIgnoreCase(SEASON)) {
                     seasonal = value;   // seasonal width
                     differencing = 1;   // just 1 diff run
-                } else {    // step
+                } else if (splits[0].equalsIgnoreCase(STEP)) {
                     differencing = value;   // multiple diff run
                     seasonal = 1;           // width of 1
+                } else {
+                    ok = false;
                 }
-            } else {
+            }
+            if (!ok) {
                 throw new IllegalArgumentException("Unrecognised " + CFG_TRANSFORM_DIFFERENCING + "argument: " + diffSetting);
             }
         }
@@ -166,7 +171,7 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
     }
 
     public static String getDifferenceColumnName(CompositeKey key, String diffType, int id) {
-        return key.getMainKey() + "_" + diffType + "_" + id;
+        return buildTag(Arrays.asList(key.getMainKey(), diffType, Integer.toString(id)));
     }
 
     @Override

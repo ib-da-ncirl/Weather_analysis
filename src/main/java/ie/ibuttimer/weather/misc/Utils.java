@@ -235,6 +235,7 @@ public class Utils {
     public static String getDialog(String line) {
         return getDialog(Collections.singletonList(line));
     }
+
     /**
      * Get a multiline text dialog with space above and below
      * @param lines
@@ -277,5 +278,17 @@ public class Utils {
      */
     public static LocalDateTime getRowDateTime(String rowName) {
         return LocalDateTime.parse(rowName.substring(ROWNAME_PREFIX.length()), YYYYMMDDHH_FMT);
+    }
+
+
+    public static final String buildTag(List<String> elements) {
+        StringBuffer sb = new StringBuffer();
+        elements.forEach(s -> {
+            if (sb.length() > 0) {
+                sb.append('_');
+            }
+            sb.append(s);
+        });
+        return sb.toString();
     }
 }

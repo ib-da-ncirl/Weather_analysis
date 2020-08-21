@@ -44,6 +44,8 @@ public class ErrorTracker {
         }
         // mean arctangent absolute percentage error (MAAPE); has no divide by zero issue like MAPE
         absErrorSum += Math.atan(percent);
+
+        ++count;
     }
 
     public double getMSE() {
