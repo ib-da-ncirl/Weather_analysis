@@ -118,7 +118,7 @@ public class AnalysisTableReducer extends TableReducer<CompositeKey, TimeSeriesD
     private void write(Context context, StatsAccumulator accumulator, int index, String name) throws IOException, InterruptedException {
         String minTs = accumulator.getMinTimestamp(DATETIME_FMT);
         String maxTs = accumulator.getMaxTimestamp(DATETIME_FMT);
-        Put put = new Put(Bytes.toBytes(name))
+        Put put = new Put(Bytes.toBytes(STATS_ROW_MARK + name))
                 .addColumn(FAMILY_BYTES, columnNameBytes(COUNT, index), storeValueAsString(accumulator.getCount()))
                 .addColumn(FAMILY_BYTES, columnNameBytes(MIN, index), storeValueAsString(accumulator.getMin()))
                 .addColumn(FAMILY_BYTES, columnNameBytes(MAX, index), storeValueAsString(accumulator.getMax()))

@@ -23,8 +23,10 @@
 package ie.ibuttimer.weather.common;
 
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Lists;
 import ie.ibuttimer.weather.hbase.Hbase;
 import ie.ibuttimer.weather.misc.*;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
@@ -32,7 +34,9 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hbase.thirdparty.com.google.common.collect.Maps;
+import org.apache.hbase.thirdparty.org.apache.commons.collections4.list.TreeList;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -183,6 +187,58 @@ public abstract class AbstractDriver implements IDriver {
             resultCode = STATUS_RUNNING;
         }
         return resultCode;
+    }
+
+
+    public static void saveDriverResults(JobConfig jobCfg, String table, List<String> statColumns, String outPath) throws IOException {
+
+        Hbase hbase = null;
+        try {
+            hbase = hbaseConnection(jobCfg);
+
+            // add stats
+            HashBasedTable<String, String, Value> stats = loadStats(hbase, jobCfg, table,
+                    STATS_ROW_MARK_REGEX, statColumns);
+
+            if (!StringUtils.isEmpty(outPath)) {
+                TreeList<String> columns = new TreeList<>();
+                columns.addAll(stats.columnKeySet());
+
+                StringBuffer sb = new StringBuffer();
+                List<String> contents = Lists.newArrayList();
+                File file = FileUtils.getFile(outPath);
+                if (!file.exists()) {
+                    // add heading
+                    columns.forEach(col -> {
+                        if (sb.length() > 0) {
+                            sb.append(',');
+                        }
+                        sb.append(col);
+                    });
+                    contents.add(sb.toString());
+                }
+
+                stats.rowKeySet().forEach(row -> {
+                    sb.delete(0, sb.length());
+                    columns.forEach(col -> {
+                        if (sb.length() > 0) {
+                            sb.append(',');
+                        }
+                        sb.append(stats.get(row, col).stringValue());
+                    });
+                    contents.add(sb.toString());
+                });
+
+                FileUtils.writeLines(FileUtils.getFile(outPath), contents, true);
+
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (hbase != null) {
+                hbase.closeConnection();
+            }
+        }
     }
 
 }

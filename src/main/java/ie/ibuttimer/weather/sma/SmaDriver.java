@@ -102,7 +102,7 @@ public class SmaDriver extends AbstractDriver implements IDriver {
                 resultCode = startJob(job, jobCfg);
 
                 if (resultCode == STATUS_SUCCESS) {
-                    saveResults(jobCfg, outTable);
+                    saveResults(jobCfg, outTable, jobCfg.getProperty(CFG_SMA_PATH_ROOT, ""));
                 }
             }
         }

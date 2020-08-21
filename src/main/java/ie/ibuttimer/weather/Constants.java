@@ -176,6 +176,9 @@ public class Constants {
     public static final String CFG_IN_PATH_ROOT = "global.in_path_root";
     public static final String CFG_OUT_PATH_ROOT = "global.out_path_root";
     public static final String CFG_ARIMA_PATH_ROOT = "arima.out_path";
+    public static final String CFG_SMA_PATH_ROOT = "sma.out_path";
+    public static final String CFG_ANALYSIS_PATH_ROOT = "analysis.out_path";
+    public static final String CFG_TRANSFORM_PATH_ROOT = "transform.out_path";
 
     public static final String CFG_MODE = "mode";                           // run mode; 'dev' or 'run'
     public static final String CFG_CLR_LAST_RESULT = "clear_last_result";   // clear last result; ignored in run mode

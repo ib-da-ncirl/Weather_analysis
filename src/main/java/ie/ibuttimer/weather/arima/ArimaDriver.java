@@ -251,7 +251,7 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
             }
 
             if (resultCode == STATUS_SUCCESS) {
-                saveResults(jobCfg, stepOutTable);
+                saveResults(jobCfg, stepOutTable, jobCfg.getProperty(CFG_ARIMA_PATH_ROOT, ""));
             }
         }
         return resultCode;
@@ -267,55 +267,8 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
         return name.get();
     }
 
-    public static void saveResults(JobConfig jobCfg, String table) throws IOException {
-        Hbase hbase = null;
-        try {
-            hbase = hbaseConnection(jobCfg);
+    public static void saveResults(JobConfig jobCfg, String table, String saveTo) throws IOException {
 
-            // add stats
-            HashBasedTable<String, String, Value> stats = loadStats(hbase, jobCfg, table,
-                    STATS_ROW_MARK_REGEX,
-                    Arrays.asList(MSE, MAAPE, AIC_MSE, AIC_MAAPE, PARAMS));
-
-            String outPath = jobCfg.getProperty(CFG_ARIMA_PATH_ROOT, "");
-            if (!StringUtils.isEmpty(outPath)) {
-                TreeList<String> columns = new TreeList<>();
-                columns.addAll(stats.columnKeySet());
-
-                StringBuffer sb = new StringBuffer();
-                List<String> contents = Lists.newArrayList();
-                File file = FileUtils.getFile(outPath);
-                if (!file.exists()) {
-                    // add heading
-                    columns.forEach(col -> {
-                        if (sb.length() > 0) {
-                            sb.append(',');
-                        }
-                        sb.append(col);
-                    });
-                    contents.add(sb.toString());
-                }
-
-                stats.rowKeySet().forEach(row -> {
-                    sb.delete(0, sb.length());
-                    columns.forEach(col -> {
-                        if (sb.length() > 0) {
-                            sb.append(',');
-                        }
-                        sb.append(stats.get(row, col).stringValue());
-                    });
-                    contents.add(sb.toString());
-                });
-
-                FileUtils.writeLines(FileUtils.getFile(outPath), contents, true);
-
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (hbase != null) {
-                hbase.closeConnection();
-            }
-        }
+        saveDriverResults(jobCfg, table, Arrays.asList(MSE, MAAPE, AIC_MSE, AIC_MAAPE, PARAMS), saveTo);
     }
 }

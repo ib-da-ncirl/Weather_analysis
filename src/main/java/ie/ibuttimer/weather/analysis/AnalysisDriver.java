@@ -23,22 +23,26 @@
 package ie.ibuttimer.weather.analysis;
 
 import com.google.common.collect.Lists;
-import ie.ibuttimer.weather.common.*;
+import ie.ibuttimer.weather.common.AbstractDriver;
+import ie.ibuttimer.weather.common.CKTSMapper;
+import ie.ibuttimer.weather.common.CompositeKey;
+import ie.ibuttimer.weather.common.TimeSeriesData;
 import ie.ibuttimer.weather.hbase.Hbase;
 import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.IDriver;
 import ie.ibuttimer.weather.misc.JobConfig;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.mapreduce.Job;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static ie.ibuttimer.weather.Constants.*;
+import static ie.ibuttimer.weather.analysis.AnalysisTableReducer.columnNameBytes;
 
 public class AnalysisDriver extends AbstractDriver implements IDriver {
 
@@ -73,15 +77,12 @@ public class AnalysisDriver extends AbstractDriver implements IDriver {
                     job);
 
             // create output table if necessary
-            TableName analysisTable = TableName.valueOf(map.get(CFG_ANALYSIS_OUT_TABLE));
+            String analysisTable = map.get(CFG_ANALYSIS_OUT_TABLE);
             Hbase hbase = null;
             try {
-                hbase = Hbase.of(jobCfg.getProperty(CFG_HBASE_RESOURCE, DFLT_HBASE_RESOURCE));
-                if (!hbase.tableExists(analysisTable)) {
-                    hbase.createTable(analysisTable.getNameAsString(), FAMILY);
-                }
+                hbase = createTable(jobCfg, analysisTable);
 
-                addStatsToConfig(hbase, jobCfg, analysisTable.getNameAsString(), config, Arrays.asList(MEAN, VARIANCE));
+                addStatsToConfig(hbase, jobCfg, analysisTable, config, Arrays.asList(MEAN, VARIANCE));
 
             } finally {
                 if (hbase != null) {
@@ -90,13 +91,31 @@ public class AnalysisDriver extends AbstractDriver implements IDriver {
             }
 
             TableMapReduceUtil.initTableReducerJob(
-                    analysisTable.getNameAsString(),   // output table
+                    analysisTable,   // output table
                     AnalysisTableReducer.class,   // reducer class
                     job);
 
             resultCode = startJob(job, jobCfg);
+
+            if (resultCode == STATUS_SUCCESS) {
+                saveResults(jobCfg, analysisTable);
+            }
         }
         return resultCode;
     }
 
+    public static void saveResults(JobConfig jobCfg, String table) throws IOException {
+
+        int numStrata = jobCfg.getProperty(CFG_NUM_STRATA, DFLT_NUM_STRATA);
+
+        List<String> statColumns = Lists.newArrayList(COUNT, MIN, MAX, MEAN, VARIANCE, STD_DEV, MIN_TS, MAX_TS);
+        for (int i = 0; i < numStrata; ++i) {
+            int finalI = i;
+            Arrays.asList(COUNT, MIN, MAX, MEAN, VARIANCE, STD_DEV, MIN_TS, MAX_TS).forEach(s -> {
+                statColumns.add(new String(columnNameBytes(s, finalI)));
+            });
+        }
+
+        saveDriverResults(jobCfg, table, statColumns, jobCfg.getProperty(CFG_ANALYSIS_PATH_ROOT, ""));
+    }
 }

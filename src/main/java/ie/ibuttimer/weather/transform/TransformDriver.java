@@ -23,7 +23,10 @@
 package ie.ibuttimer.weather.transform;
 
 import com.google.common.collect.Lists;
-import ie.ibuttimer.weather.common.*;
+import ie.ibuttimer.weather.common.AbstractDriver;
+import ie.ibuttimer.weather.common.CKTSMapper;
+import ie.ibuttimer.weather.common.CompositeKey;
+import ie.ibuttimer.weather.common.TimeSeriesData;
 import ie.ibuttimer.weather.hbase.Hbase;
 import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.IDriver;
@@ -35,6 +38,7 @@ import org.apache.hadoop.mapreduce.Job;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static ie.ibuttimer.weather.Constants.*;
@@ -100,6 +104,10 @@ public class TransformDriver extends AbstractDriver implements IDriver {
                     job);
 
             resultCode = startJob(job, jobCfg);
+
+            if (resultCode == STATUS_SUCCESS) {
+                saveResults(jobCfg, transformTable);
+            }
         }
         return resultCode;
     }
@@ -107,5 +115,17 @@ public class TransformDriver extends AbstractDriver implements IDriver {
     public TransformDriver setAddStats(boolean addStats) {
         this.addStats = addStats;
         return this;
+    }
+
+    public static void saveResults(JobConfig jobCfg, String table) throws IOException {
+
+        boolean zeroTransform = jobCfg.getProperty(CFG_ZERO_TRANSFORM, false);
+
+        List<String> statColumns = Lists.newArrayList(AUTOCORRELATION);
+        if (zeroTransform) {
+            statColumns.add(AUTOCOVARIANCE);
+        }
+
+        saveDriverResults(jobCfg, table, statColumns, jobCfg.getProperty(CFG_TRANSFORM_PATH_ROOT, ""));
     }
 }
