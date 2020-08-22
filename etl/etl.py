@@ -712,7 +712,7 @@ def analyse_station_data(base_uri, station_id: int, station_name: str, read_args
                 hr_before = df[DATA_DATE].iloc[i-1] + pd.Timedelta(hours=1)
                 if df[DATA_DATE].iloc[i] != hr_before:
                     if len(missing_lines) > 0:
-                        missing_lines += ','
+                        missing_lines += '|'
                     missing_lines += f"{hr_before}"
 
             # get file type
