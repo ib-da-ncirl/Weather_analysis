@@ -39,11 +39,12 @@ from typing.io import IO
 from misc import ArgCtrl, verify_path
 
 BASE_URL = 'https://cli.fusio.net/cli/climate_data/webdata/'
-INTER_REQ_DELAY = 10  # default inter-request delay to avoid swamping host
+INTER_REQ_DELAY = 20  # default inter-request delay to avoid swamping host
 DFLT_SAVE_FOLDER = './'
 DFLT_INFO_PATH = './info.csv'
 
 FILE_URI = 'file://'
+HTTP_URI = 'http'
 
 
 class Comparator(Enum):
@@ -149,7 +150,7 @@ def load_csv(filepath_or_buffer: Union[str, ZipExtFile, IO[AnyStr]], read_args: 
     return df
 
 
-RequestResult = namedtuple('RequestResult', ['status', 'payload'])
+RequestResult = namedtuple('RequestResult', ['status', 'payload', 'typ'])
 
 
 def download_file(uri: str, save_to: str = None):
@@ -161,7 +162,7 @@ def download_file(uri: str, save_to: str = None):
             verify_path(os.path.dirname(save_to), typ='dir', create_dir=True)
             with open(save_to, 'wb') as fout:
                 fout.write(content)
-        result = RequestResult(HTTPStatus.OK, content)
+        result = RequestResult(HTTPStatus.OK, content, HTTP_URI)
     else:
         try:
             response.raise_for_status()
@@ -171,23 +172,23 @@ def download_file(uri: str, save_to: str = None):
             error_msg = f'Error: {err}'
         else:
             error_msg = ''
-        result = RequestResult(response.status_code, error_msg)
+        result = RequestResult(response.status_code, error_msg, HTTP_URI)
 
     return result, stream
 
 
 def get_contents_or_path(uri: str, end_on_err=True) -> Tuple[Union[io.StringIO, io.BytesIO, str], RequestResult]:
     filepath_or_buffer = uri
-    result = RequestResult(HTTPStatus.NOT_FOUND, None)
+    result = RequestResult(HTTPStatus.NOT_FOUND, None, None)
     if isinstance(uri, str):
-        if uri.startswith('http'):
+        if uri.startswith(HTTP_URI):
             content_result, stream = download_file(uri)
             if content_result.status == HTTPStatus.OK:
                 if not stream:
                     filepath_or_buffer = io.StringIO(content_result.payload.decode('utf8'))
                 else:
                     filepath_or_buffer = io.BytesIO(content_result.payload)
-                result = RequestResult(HTTPStatus.OK, None)
+                result = RequestResult(HTTPStatus.OK, None, HTTP_URI)
             else:
                 result = content_result
 
@@ -206,7 +207,7 @@ def get_contents_or_path(uri: str, end_on_err=True) -> Tuple[Union[io.StringIO, 
             if end_on_err and status != HTTPStatus.OK:
                 error(msg)
             else:
-                result = RequestResult(status, msg)
+                result = RequestResult(status, msg, FILE_URI)
         else:
             error(f"Unknown uri, '{uri}'")
 
@@ -216,7 +217,7 @@ def get_contents_or_path(uri: str, end_on_err=True) -> Tuple[Union[io.StringIO, 
 def get_filepath_or_buffer(uri: Union[str, list], end_on_err=True) -> \
         Tuple[Union[io.StringIO, io.BytesIO, str], RequestResult]:
     filepath_or_buffer = uri
-    result = RequestResult(HTTPStatus.NOT_FOUND, None)
+    result = RequestResult(HTTPStatus.NOT_FOUND, None, None)
 
     if isinstance(uri, str):
         uri_list = [uri]
@@ -443,9 +444,9 @@ def load_station_data(base_uri: str, filename: Union[ReadParam, list], args: dic
     for entry in file_list:
         zip_url = f"{base_uri}{entry.filename}.zip"
         read_from, result = get_filepath_or_buffer(zip_url, end_on_err=False)
-        if read_from.startswith(FILE_URI):
-            read_from = read_from[len(FILE_URI):]
         if result.status == HTTPStatus.OK:
+            if result.typ == FILE_URI and read_from.startswith(FILE_URI):
+                read_from = read_from[len(FILE_URI):]
             with ZipFile(read_from) as zipped:
                 print(f"Retrieved {zip_url}")
                 with zipped.open(f"{entry.filename}.csv") as csv_file:
@@ -823,7 +824,7 @@ def create_table_hbase(table_name: str, args: dict, connection: happybase.connec
         connection = connection_hbase(args)
 
     if bytearray(table_name, 'utf-8') not in connection.tables():
-        connection.create_table(DATA_TABLE, {COLUMN_FAMILY: dict()})  # use defaults
+        connection.create_table(table_name, {COLUMN_FAMILY: dict()})  # use defaults
 
     return connection
 
@@ -854,7 +855,7 @@ def save_to_hbase(data: pd.DataFrame, station: int, row_template: dict, args: di
 
     count = 0
     total = 0
-    table = connection.table(DATA_TABLE)
+    table = connection.table(args['ztable'])
     with table.batch(batch_size=1000) as b:
         for row in data.iterrows():
             row_name = get_row_name(row[1][DATA_DATE])
@@ -962,6 +963,7 @@ def main():
     arg_ctrl.add_option('i', 'info', f'Path to save station data info to; default {DFLT_INFO_PATH}', has_value=True,
                         dfl_value=DFLT_INFO_PATH)
     arg_ctrl.add_option('u', 'uri', f'Uri for data; default {BASE_URL}', has_value=True, dfl_value=BASE_URL)
+    arg_ctrl.add_option('z', 'ztable', f'Database table; default {DATA_TABLE}', has_value=True, dfl_value=DATA_TABLE)
     arg_ctrl.add_option('b', 'begin', 'Minimum date for readings; yyyy-mm-dd', has_value=True, typ="date=%Y-%m-%d")
     arg_ctrl.add_option('e', 'end', 'Maximum date for readings; yyyy-mm-dd', has_value=True, typ="date=%Y-%m-%d")
     arg_ctrl.add_option('s', 'save', f'Save files', dfl_value=False)
@@ -971,6 +973,8 @@ def main():
 
     args = sys.argv[1:] if len(sys.argv) > 1 else '-h'
     app_cfg = arg_ctrl.get_app_config(args, set_defaults=False)
+    if 'ztable' not in app_cfg.keys():
+        app_cfg['ztable'] = DATA_TABLE
 
     # expand home folder relative paths, python does not expand the value of '~'
     # instead, a literal directory is created relative to the current working directory
@@ -1015,7 +1019,7 @@ def main():
                 station_filters.append(DfFilter(DATA_DATE, 'subset_by_val',
                                                 FilterArg(app_cfg['end'], Comparator.LT_EQ)))
 
-            connection = create_table_hbase(DATA_TABLE, app_cfg)
+            connection = create_table_hbase(app_cfg['ztable'], app_cfg)
         else:
             row_template = None
             connection = None

@@ -1,7 +1,8 @@
 
 # uri for data source; url or 'file://' string
-uri: file://../../data/
-#uri: https://cli.fusio.net/cli/climate_data/webdata/
+# note: don't forget to include root folder if specifying absolute path, e.g. 'file:///absolute/path'
+#uri: file://../../data/
+uri: https://cli.fusio.net/cli/climate_data/webdata/
 
 # Address of Thrift host
 thrift: localhost
@@ -23,8 +24,10 @@ station_summary: ./results/summary.txt
 # station analysis
 # ----------------
 # station number; number, list of numbers or 'none' to read all
-station_number: none
+#station_number: none
 #station_number: 5331
+station_number: 3904
+#station_number: 2275
 #station_number: [3904, 575]
 # restrict to county; county name or 'none' for all
 station_county: none
@@ -40,7 +43,9 @@ begin: 2011-06-26
 # Maximum date for readings; yyyy-mm-dd
 end: 2020-07-01
 # station number; number, list of numbers or 'none' to read all
+# for demo
 reading_stations: 3904
+# dataset from analysis of available data
 #reading_stations: [3904, 575, 1075, 775, 2275, 1475, 518, 1775, 375, 3723, 532, 175, 1375, 875, 1875, 275, 1975, 2375, 2175, 4935, 1175, 1275, 675, 2075, 1575]
 # columns to save; note actual column names are 'name_<station id>'
 reading_columns: ['msl', 'dewpt', 'wetb', 'date', 'ind_wetb', 'rain', 'rhum', 'ind_rain', 'temp', 'vappr', 'ind_temp']
