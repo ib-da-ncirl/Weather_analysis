@@ -42,6 +42,7 @@ BASE_URL = 'https://cli.fusio.net/cli/climate_data/webdata/'
 INTER_REQ_DELAY = 20  # default inter-request delay to avoid swamping host
 DFLT_SAVE_FOLDER = './'
 DFLT_INFO_PATH = './info.csv'
+DFLT_SUMMARY_PATH = './summary.txt'
 
 FILE_URI = 'file://'
 HTTP_URI = 'http'
@@ -648,6 +649,21 @@ def get_station_data(base_uri, station_id: int, station_name: str, read_args: di
     return df
 
 
+def query_delete(path: str):
+    """
+    Query delete file
+    :param path: file path
+    :return:
+    """
+
+    if os.path.exists(path):
+        choice = ''
+        while not choice == 'y' and not choice == 'n':
+            choice = input(f"'{path}' exists\nDelete it [y/n]: ").lower()
+        if choice == 'y':
+            os.remove(path)
+
+
 def analyse_station_data(base_uri, station_id: int, station_name: str, read_args: dict, args: dict,
                          query_rm_file: bool, filters=None):
     """
@@ -662,12 +678,8 @@ def analyse_station_data(base_uri, station_id: int, station_name: str, read_args
     :return:
     """
 
-    if query_rm_file and os.path.exists(args['info']):
-        choice = ''
-        while not choice == 'y' and not choice == 'n':
-            choice = input(f"'{args['info']}' exists\nDelete it [y/n]: ").lower()
-        if choice == 'y':
-            os.remove(args['info'])
+    if query_rm_file:
+        query_delete(args['info'])
 
     df, read_file = load_station_data(base_uri, [ReadParam(read_args['filename'], read_args['args'])], args,
                                       filters=filters)
@@ -715,6 +727,9 @@ def analyse_station_data(base_uri, station_id: int, station_name: str, read_args
 
 def station_analysis_summary(args: dict):
     create = True
+
+    query_delete(args['jsummary'])
+
     for typ in ['hly', 'dly']:
         # read station analysis csv
         filepath = args['info']
@@ -751,36 +766,38 @@ def station_analysis_summary(args: dict):
         for col in column_set:
             col_width = max(col_width, len(col))
 
-        verify_path(os.path.dirname(args['station_summary']), typ='dir', create_dir=True)
-        with open(args['station_summary'], "w" if create else "a") as fhout:
-            create = False
+        # do summary
+        if len(df) > 0:
+            verify_path(os.path.dirname(args['jsummary']), typ='dir', create_dir=True)
+            with open(args['jsummary'], "w" if create else "a") as fhout:
+                create = False
 
-            heading = f"Summary for {typ} data"
-            fhout.write(f"{heading}\n{'-' * len(heading)}\n\n")
+                heading = f"Summary for {typ} data"
+                fhout.write(f"{heading}\n{'-' * len(heading)}\n\n")
 
-            fhout.write(f"Earliest readings start date: {df['min_date'].min()}\n")
-            fhout.write(f"Latest readings start date: {df['min_date'].max()}\n")
-            fhout.write(f"Earliest readings end date: {df['max_date'].min()}\n")
-            fhout.write(f"Latest readings end date: {df['max_date'].max()}\n")
-            fhout.write(f"Max readings coverage date range: {df['min_date'].max()} to {df['max_date'].min()}\n\n")
+                fhout.write(f"Earliest readings start date: {df['min_date'].min()}\n")
+                fhout.write(f"Latest readings start date: {df['min_date'].max()}\n")
+                fhout.write(f"Earliest readings end date: {df['max_date'].min()}\n")
+                fhout.write(f"Latest readings end date: {df['max_date'].max()}\n")
+                fhout.write(f"Max readings coverage date range: {df['min_date'].max()} to {df['max_date'].min()}\n\n")
 
-            have_all = []
-            fhout.write(f"Station data availability:\n")
-            for col in column_set:
-                have_col_df = df[df[col]]
-                have_col_cnt = len(have_col_df)
-                if have_col_cnt == len(df):
-                    have_all.append(col)
-                    matches = ''
-                else:
-                    matches = f", {have_col_df['station_id'].tolist()}"
-                fhout.write(f"{col:{col_width}s}: {have_col_cnt:2d} of {len(df):2d}{matches}\n")
+                have_all = []
+                fhout.write(f"Station data availability:\n")
+                for col in column_set:
+                    have_col_df = df[df[col]]
+                    have_col_cnt = len(have_col_df)
+                    if have_col_cnt == len(df):
+                        have_all.append(col)
+                        matches = ''
+                    else:
+                        matches = f", {have_col_df['station_id'].tolist()}"
+                    fhout.write(f"{col:{col_width}s}: {have_col_cnt:2d} of {len(df):2d}{matches}\n")
 
-            fhout.write(f"\nCommon columns: {have_all}\n")
-            fhout.write(f"Station ids: {df['station_id'].tolist()}\n")
-            if typ == 'hly':
-                fhout.write(f"Estimated dataset size: "
-                            f"{(df['max_date'].min() - df['min_date'].max()).days * 24} rows\n\n")
+                fhout.write(f"\nCommon columns: {have_all}\n")
+                fhout.write(f"Station ids: {df['station_id'].tolist()}\n")
+                if typ == 'hly':
+                    fhout.write(f"Estimated dataset size: "
+                                f"{(df['max_date'].min() - df['min_date'].max()).days * 24} rows\n\n")
 
 
 TABLE_PREFIX = "weather"
@@ -962,6 +979,8 @@ def main():
                         dfl_value=DFLT_SAVE_FOLDER)
     arg_ctrl.add_option('i', 'info', f'Path to save station data info to; default {DFLT_INFO_PATH}', has_value=True,
                         dfl_value=DFLT_INFO_PATH)
+    arg_ctrl.add_option('j', 'jsummary', f'Path to save station summary info to; default {DFLT_SUMMARY_PATH}', has_value=True,
+                        dfl_value=DFLT_SUMMARY_PATH)
     arg_ctrl.add_option('u', 'uri', f'Uri for data; default {BASE_URL}', has_value=True, dfl_value=BASE_URL)
     arg_ctrl.add_option('z', 'ztable', f'Database table; default {DATA_TABLE}', has_value=True, dfl_value=DATA_TABLE)
     arg_ctrl.add_option('b', 'begin', 'Minimum date for readings; yyyy-mm-dd', has_value=True, typ="date=%Y-%m-%d")
@@ -978,7 +997,7 @@ def main():
 
     # expand home folder relative paths, python does not expand the value of '~'
     # instead, a literal directory is created relative to the current working directory
-    for key in ['uri', 'folder', 'info', 'station_summary']:
+    for key in ['uri', 'folder', 'info', 'jsummary']:
         if '~' in app_cfg[key]:
             app_cfg[key] = app_cfg[key].replace('~', Path.home().as_uri()[len(FILE_URI):])
 

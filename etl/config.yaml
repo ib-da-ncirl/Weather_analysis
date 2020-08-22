@@ -19,7 +19,7 @@ folder: ../../data
 # Path to save station data info to
 info: ./results/info.csv
 # Path to save station summary data
-station_summary: ./results/summary.txt
+jsummary: ./results/summary.txt
 
 # station analysis
 # ----------------
