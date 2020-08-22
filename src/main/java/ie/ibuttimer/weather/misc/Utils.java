@@ -22,8 +22,11 @@
 
 package ie.ibuttimer.weather.misc;
 
+import com.google.common.collect.Lists;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 
+import java.io.File;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -31,11 +34,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static ie.ibuttimer.weather.Constants.CFG_TRANSFORM_LAG;
 import static ie.ibuttimer.weather.Constants.YYYYMMDDHH_FMT;
 
 /**
@@ -281,7 +287,7 @@ public class Utils {
     }
 
 
-    public static final String buildTag(List<String> elements) {
+    public static String buildTag(List<String> elements) {
         StringBuffer sb = new StringBuffer();
         elements.forEach(s -> {
             if (sb.length() > 0) {
@@ -291,4 +297,46 @@ public class Utils {
         });
         return sb.toString();
     }
+
+    /**
+     * Expand user home relative paths
+     * @param path
+     * @return
+     */
+    public static String expandPath(String path) {
+        if (path.startsWith("~" + File.separator)) {
+            path = System.getProperty("user.home") + path.substring(1);
+        } else if (path.startsWith("~")) {
+            throw new UnsupportedOperationException("Home dir expansion not implemented for explicit usernames");
+        }
+        return path;
+    }
+
+
+    public static List<Integer> rangeSpec(String config) {
+
+        List<Integer> range;
+        if (!StringUtils.isEmpty(config)) {
+            if (config.contains(",")) {
+                String[] splits = config.split(",");
+                range = Arrays.stream(splits)
+                        .map(Integer::parseInt)
+                        .collect(Collectors.toList());
+            } else if (config.contains("-")) {
+                String[] splits = config.split("-");
+                int start = Integer.parseInt(splits[0]);
+                int end = Integer.parseInt(splits[1]);
+                range = IntStream.rangeClosed(start,end)
+                        .boxed()
+                        .collect(Collectors.toList());
+            } else {
+                range = Lists.newArrayList(Integer.parseInt(config));
+            }
+        } else {
+            range = Lists.newArrayList();
+        }
+        return range;
+    }
+
+
 }

@@ -33,15 +33,11 @@ import ie.ibuttimer.weather.hbase.TypeMap;
 import ie.ibuttimer.weather.misc.*;
 import ie.ibuttimer.weather.transform.DifferencingDriver;
 import ie.ibuttimer.weather.transform.TransformDriver;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hbase.thirdparty.org.apache.commons.collections4.list.TreeList;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -100,20 +96,7 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
                                 String.format("%nStep %d - Clear", step.ordinal() + 1)));
 
                         try {
-                            hbase = hbaseConnection(jobCfg);
-                            // remove existing tables
-                            List<String> outputTables = Arrays.asList(stepOutTable, lagOutTable, arimaOutTable);
-                            Hbase finalHbase = hbase;
-                            hbase.getTables().stream()
-                                    .map(t -> new String(t.getTableName().getName()))
-                                    .filter(outputTables::contains)
-                                    .forEach(t -> {
-                                        try {
-                                            finalHbase.removeTable(t);
-                                        } catch (IOException e) {
-                                            e.printStackTrace();
-                                        }
-                                    });
+                            hbase = deleteTables(jobCfg, Arrays.asList(stepOutTable, lagOutTable, arimaOutTable));
                         } finally {
                             if (hbase != null) {
                                 hbase.closeConnection();
@@ -251,7 +234,7 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
             }
 
             if (resultCode == STATUS_SUCCESS) {
-                saveResults(jobCfg, stepOutTable, jobCfg.getProperty(CFG_ARIMA_PATH_ROOT, ""));
+                saveResults(jobCfg, stepOutTable, jobCfg.getProperty(CFG_ARIMA_PATH_ROOT, ""), logger);
             }
         }
         return resultCode;
@@ -267,8 +250,8 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
         return name.get();
     }
 
-    public static void saveResults(JobConfig jobCfg, String table, String saveTo) throws IOException {
+    public static void saveResults(JobConfig jobCfg, String table, String saveTo, AppLogger logger) throws IOException {
 
-        saveDriverResults(jobCfg, table, Arrays.asList(MSE, MAAPE, AIC_MSE, AIC_MAAPE, PARAMS), saveTo);
+        saveDriverResults(jobCfg, table, Arrays.asList(MSE, MAAPE, AIC_MSE, AIC_MAAPE, PARAMS), saveTo, logger);
     }
 }

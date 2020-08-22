@@ -98,13 +98,13 @@ public class AnalysisDriver extends AbstractDriver implements IDriver {
             resultCode = startJob(job, jobCfg);
 
             if (resultCode == STATUS_SUCCESS) {
-                saveResults(jobCfg, analysisTable);
+                saveResults(jobCfg, analysisTable, logger);
             }
         }
         return resultCode;
     }
 
-    public static void saveResults(JobConfig jobCfg, String table) throws IOException {
+    public static void saveResults(JobConfig jobCfg, String table, AppLogger logger) throws IOException {
 
         int numStrata = jobCfg.getProperty(CFG_NUM_STRATA, DFLT_NUM_STRATA);
 
@@ -116,6 +116,6 @@ public class AnalysisDriver extends AbstractDriver implements IDriver {
             });
         }
 
-        saveDriverResults(jobCfg, table, statColumns, jobCfg.getProperty(CFG_ANALYSIS_PATH_ROOT, ""));
+        saveDriverResults(jobCfg, table, statColumns, jobCfg.getProperty(CFG_ANALYSIS_PATH_ROOT, ""), logger);
     }
 }

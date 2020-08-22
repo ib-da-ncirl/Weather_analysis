@@ -27,6 +27,12 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
 
+/**
+ * Basic stats calculation
+ *
+ * - Calculated mean and standard deviation based on
+ *   https://learning.oreilly.com/library/view/Art+of+Computer+Programming,+Volume+2,+The:+Seminumerical+Algorithms/9780321635778/ch04.html#page_232
+ */
 public class StatsAccumulator {
     private long count;
     private double min;

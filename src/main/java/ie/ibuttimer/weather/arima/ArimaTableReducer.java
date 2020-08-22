@@ -94,12 +94,10 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
         modelParams.append(" : ").append(CFG_ARIMA_C).append("=").append(constant);
 
         // from other steps
-        modelParams.append(" : ").append(CFG_ARIMA_D).append("=")
-                .append(conf.get(CFG_ARIMA_D)).append(" : ")
-                .append(CFG_TRANSFORM_DIFFERENCING).append("=")
-                .append(sanitiseParam(conf.get(CFG_TRANSFORM_DIFFERENCING, "")))
-                .append(CFG_ZERO_TRANSFORM).append("=")
-                .append(conf.getBoolean(CFG_ZERO_TRANSFORM, false));
+        modelParams.append(" : ")
+                .append(CFG_ARIMA_D).append("=").append(conf.get(CFG_ARIMA_D))
+                .append(" : ").append(CFG_TRANSFORM_DIFFERENCING).append("=").append(sanitiseParam(conf.get(CFG_TRANSFORM_DIFFERENCING, "")))
+                .append(" : ").append(CFG_ZERO_TRANSFORM).append("=").append(conf.getBoolean(CFG_ZERO_TRANSFORM, false));
 
         valueWindow = new ArrayDeque<>();
         errorWindow = new ArrayDeque<>();

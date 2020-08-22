@@ -22,7 +22,10 @@
 
 package ie.ibuttimer.weather.sma;
 
-import ie.ibuttimer.weather.common.*;
+import ie.ibuttimer.weather.common.AbstractDriver;
+import ie.ibuttimer.weather.common.CKTSMapper;
+import ie.ibuttimer.weather.common.CompositeKey;
+import ie.ibuttimer.weather.common.TimeSeriesData;
 import ie.ibuttimer.weather.hbase.Hbase;
 import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.IDriver;
@@ -30,15 +33,16 @@ import ie.ibuttimer.weather.misc.JobConfig;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static ie.ibuttimer.weather.Constants.*;
 import static ie.ibuttimer.weather.arima.ArimaDriver.saveResults;
+import static ie.ibuttimer.weather.misc.Utils.rangeSpec;
 
 public class SmaDriver extends AbstractDriver implements IDriver {
 
@@ -60,54 +64,62 @@ public class SmaDriver extends AbstractDriver implements IDriver {
 
         if (resultCode == STATUS_SUCCESS) {
 
-            Job job = initJob(config, jobCfg, "Analysis");
+            for (int size :
+                    rangeSpec(jobCfg.getProperty(CFG_MA_WINDOW_SIZE, Integer.toString(DFLT_MA_WINDOW_SIZE)))) {
 
-            TableMapReduceUtil.initTableMapperJob(
-                    properties.getRight(), // input table
-                    initScan(jobCfg),     // Scan instance to control CF and attribute selection
-                    CKTSMapper.class,     // mapper class
-                    CompositeKey.class,   // mapper output key
-                    TimeSeriesData.class, // mapper output value
-                    job);
-            String reduceMode = jobCfg.getProperty(CFG_SMA_REDUCE_MODE, DFLT_SMA_REDUCE_MODE);
+                jobCfg.setProperty(CFG_MA_WINDOW_SIZE, size);
 
-            if (reduceMode.equalsIgnoreCase(SMA_FILE_REDUCE_MODE)) {
-                job.setReducerClass(SmaFileReducer.class);    // reducer class
+                Job job = initJob(config, jobCfg, "SMA");
 
-                FileOutputFormat.setOutputPath(job, new Path(jobCfg.getProperty(CFG_OUT_PATH_ROOT)));
 
-            } else if (reduceMode.equalsIgnoreCase(SMA_TABLE_REDUCE_MODE)) {
+                TableMapReduceUtil.initTableMapperJob(
+                        properties.getRight(), // input table
+                        initScan(jobCfg),     // Scan instance to control CF and attribute selection
+                        CKTSMapper.class,     // mapper class
+                        CompositeKey.class,   // mapper output key
+                        TimeSeriesData.class, // mapper output value
+                        job);
+                String reduceMode = jobCfg.getProperty(CFG_SMA_REDUCE_MODE, DFLT_SMA_REDUCE_MODE);
 
-                TableName table = TableName.valueOf(outTable);
+                if (reduceMode.equalsIgnoreCase(SMA_FILE_REDUCE_MODE)) {
+                    job.setReducerClass(SmaFileReducer.class);    // reducer class
 
-                Hbase hbase = null;
-                try {
-                    hbase = createTable(jobCfg, table.getNameAsString());
-                } finally {
-                    if (hbase != null) {
-                        hbase.closeConnection();
+                    FileOutputFormat.setOutputPath(job, new Path(jobCfg.getProperty(CFG_OUT_PATH_ROOT)));
+
+                } else if (reduceMode.equalsIgnoreCase(SMA_TABLE_REDUCE_MODE)) {
+
+                    Hbase hbase = null;
+                    try {
+                        hbase = deleteTables(jobCfg, Collections.singletonList(outTable));
+                        hbase = createTable(jobCfg, outTable);
+                    } finally {
+                        if (hbase != null) {
+                            hbase.closeConnection();
+                        }
                     }
+
+                    TableMapReduceUtil.initTableReducerJob(
+                            outTable,                // output table
+                            SmaTableReducer.class,   // reducer class
+                            job);
+
+                } else {
+                    resultCode = STATUS_CONFIG_ERROR;
                 }
 
-                TableMapReduceUtil.initTableReducerJob(
-                        table.getNameAsString(),                // output table
-                        SmaTableReducer.class,   // reducer class
-                        job);
-
-            } else {
-                resultCode = STATUS_CONFIG_ERROR;
-            }
-
-            if (resultCode == STATUS_SUCCESS) {
-                resultCode = startJob(job, jobCfg);
-
                 if (resultCode == STATUS_SUCCESS) {
-                    saveResults(jobCfg, outTable, jobCfg.getProperty(CFG_SMA_PATH_ROOT, ""));
+                    resultCode = startJob(job, jobCfg);
+
+                    if (resultCode == STATUS_SUCCESS) {
+                        saveResults(jobCfg, outTable, jobCfg.getProperty(CFG_SMA_PATH_ROOT, ""), logger);
+                    }
+                }
+                if (resultCode != STATUS_SUCCESS) {
+                    break;
                 }
             }
         }
 
         return resultCode;
     }
-
 }

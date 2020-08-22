@@ -49,6 +49,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static ie.ibuttimer.weather.Constants.*;
+import static ie.ibuttimer.weather.misc.Utils.expandPath;
 
 public class WeatherAnalysis extends Configured implements Tool {
 
@@ -219,14 +220,14 @@ public class WeatherAnalysis extends Configured implements Tool {
                     Properties properties = getResources(resourceFile);
 
                     if (!StringUtils.isEmpty(inPathRoot)) {
-                        properties.setProperty(CFG_IN_PATH_ROOT, inPathRoot);
+                        properties.setProperty(CFG_IN_PATH_ROOT, expandPath(inPathRoot));
                     } else {
-                        inPathRoot = properties.getProperty(CFG_IN_PATH_ROOT);
+                        inPathRoot = expandPath(properties.getProperty(CFG_IN_PATH_ROOT));
                     }
                     if (!StringUtils.isEmpty(outPathRoot)) {
-                        properties.setProperty(CFG_OUT_PATH_ROOT, outPathRoot);
+                        properties.setProperty(CFG_OUT_PATH_ROOT, expandPath(outPathRoot));
                     } else {
-                        outPathRoot = properties.getProperty(CFG_OUT_PATH_ROOT);
+                        outPathRoot = expandPath(properties.getProperty(CFG_OUT_PATH_ROOT));
                     }
 
                     if (properties.isEmpty()) {

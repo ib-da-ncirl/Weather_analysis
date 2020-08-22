@@ -106,7 +106,7 @@ public class TransformDriver extends AbstractDriver implements IDriver {
             resultCode = startJob(job, jobCfg);
 
             if (resultCode == STATUS_SUCCESS) {
-                saveResults(jobCfg, transformTable);
+                saveResults(jobCfg, transformTable, logger);
             }
         }
         return resultCode;
@@ -117,7 +117,7 @@ public class TransformDriver extends AbstractDriver implements IDriver {
         return this;
     }
 
-    public static void saveResults(JobConfig jobCfg, String table) throws IOException {
+    public static void saveResults(JobConfig jobCfg, String table, AppLogger logger) throws IOException {
 
         boolean zeroTransform = jobCfg.getProperty(CFG_ZERO_TRANSFORM, false);
 
@@ -126,6 +126,6 @@ public class TransformDriver extends AbstractDriver implements IDriver {
             statColumns.add(AUTOCOVARIANCE);
         }
 
-        saveDriverResults(jobCfg, table, statColumns, jobCfg.getProperty(CFG_TRANSFORM_PATH_ROOT, ""));
+        saveDriverResults(jobCfg, table, statColumns, jobCfg.getProperty(CFG_TRANSFORM_PATH_ROOT, ""), logger);
     }
 }

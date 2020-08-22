@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static ie.ibuttimer.weather.Constants.*;
+import static ie.ibuttimer.weather.misc.Utils.expandPath;
 
 public abstract class AbstractDriver implements IDriver {
 
@@ -172,6 +173,23 @@ public abstract class AbstractDriver implements IDriver {
         return hbase;
     }
 
+    protected Hbase deleteTables(JobConfig jobCfg, List<String> tableNames) throws IOException {
+
+        Hbase hbase = hbaseConnection(jobCfg);
+        // remove existing tables
+        hbase.getTables().stream()
+                .map(t -> new String(t.getTableName().getName()))
+                .filter(tableNames::contains)
+                .forEach(t -> {
+                    try {
+                        hbase.removeTable(t);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+        return hbase;
+    }
+
     public int startJob(Job job, JobConfig jobCfg) throws IOException, ClassNotFoundException, InterruptedException {
 
         int resultCode;
@@ -190,7 +208,9 @@ public abstract class AbstractDriver implements IDriver {
     }
 
 
-    public static void saveDriverResults(JobConfig jobCfg, String table, List<String> statColumns, String outPath) throws IOException {
+    public static void saveDriverResults(JobConfig jobCfg, String table, List<String> statColumns, String outPath, AppLogger logger) throws IOException {
+
+        outPath = expandPath(outPath);
 
         Hbase hbase = null;
         try {
@@ -228,6 +248,8 @@ public abstract class AbstractDriver implements IDriver {
                     });
                     contents.add(sb.toString());
                 });
+
+                logger.logger().info(String.format("Saving to %s", outPath));
 
                 FileUtils.writeLines(FileUtils.getFile(outPath), contents, true);
 
