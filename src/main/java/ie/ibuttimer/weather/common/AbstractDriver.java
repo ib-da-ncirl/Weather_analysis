@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static ie.ibuttimer.weather.Constants.*;
 import static ie.ibuttimer.weather.misc.Utils.expandPath;
@@ -217,12 +218,14 @@ public abstract class AbstractDriver implements IDriver {
             hbase = hbaseConnection(jobCfg);
 
             // add stats
+            // TODO not very efficient, scans whole table, since hbase stores lexicographically stats mark is at the top, so once no longer found ok to stop
             HashBasedTable<String, String, Value> stats = loadStats(hbase, jobCfg, table,
                     STATS_ROW_MARK_REGEX, statColumns);
 
             if (!StringUtils.isEmpty(outPath)) {
-                TreeList<String> columns = new TreeList<>();
-                columns.addAll(stats.columnKeySet());
+                List<String> columns = stats.columnKeySet().stream()
+                        .sorted()
+                        .collect(Collectors.toList());
 
                 StringBuffer sb = new StringBuffer();
                 List<String> contents = Lists.newArrayList();

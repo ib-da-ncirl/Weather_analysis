@@ -112,8 +112,8 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
                         // update config with differencing info for arima
                         jobCfg.setProperty(CFG_DIFFERENCING_IN_TABLE, stepInTable);
                         jobCfg.setProperty(CFG_DIFFERENCING_OUT_TABLE, stepOutTable);
-                        jobCfg.setProperty(CFG_TRANSFORM_DIFFERENCING, STEP+ "," + arimaD);
-//                        jobCfg.setProperty(CFG_TRANSFORM_DIFFERENCING, SEASON+ "," + (24*365));
+                        jobCfg.setProperty(CFG_DIFFERENCING, STEP+ "," + arimaD);
+//                        jobCfg.setProperty(CFG_DIFFERENCING, SEASON+ "," + (24*365));
 
                         resultCode = DifferencingDriver.of(logger).runJob(config, jobCfg);
 
@@ -252,6 +252,6 @@ public class ArimaDriver extends AbstractDriver implements IDriver {
 
     public static void saveResults(JobConfig jobCfg, String table, String saveTo, AppLogger logger) throws IOException {
 
-        saveDriverResults(jobCfg, table, Arrays.asList(MSE, MAAPE, AIC_MSE, AIC_MAAPE, PARAMS), saveTo, logger);
+        saveDriverResults(jobCfg, table, Arrays.asList(MSE, MAAPE, AIC_MSE, AIC_MAAPE, BIC_MSE, BIC_MAAPE, PARAMS), saveTo, logger);
     }
 }

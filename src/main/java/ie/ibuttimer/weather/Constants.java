@@ -47,6 +47,7 @@ public class Constants {
     public static final String VAPPR_COL = "vappr";
     public static final String WETB_COL = "wetb";
 
+    public static final String BASENAME = "basename";
     public static final String COUNT = "count";
     public static final String MIN = "min";
     public static final String MAX = "max";
@@ -67,6 +68,8 @@ public class Constants {
     public static final String MAAPE = "maape";
     public static final String AIC_MSE = "aic_mse";
     public static final String AIC_MAAPE = "aic_maape";
+    public static final String BIC_MSE = "bic_mse";
+    public static final String BIC_MAAPE = "bic_maape";
     public static final String PARAMS = "params";
 
     public static String stationColumn(String column, int station) {
@@ -178,6 +181,7 @@ public class Constants {
     public static final String CFG_ARIMA_PATH_ROOT = "arima.out_path";
     public static final String CFG_SMA_PATH_ROOT = "sma.out_path";
     public static final String CFG_ANALYSIS_PATH_ROOT = "analysis.out_path";
+    public static final String CFG_DIFFERENCING_PATH_ROOT = "differencing.out_path";
     public static final String CFG_TRANSFORM_PATH_ROOT = "transform.out_path";
 
     public static final String CFG_MODE = "mode";                           // run mode; 'dev' or 'run'
@@ -198,7 +202,7 @@ public class Constants {
     public static final String DFLT_SMA_REDUCE_TABLE = "sma_info";
 
     public static final String CFG_TRANSFORM_LAG = "transform_lag";           // lag in hours
-    public static final String CFG_TRANSFORM_DIFFERENCING = "transform_differencing";   // differencing in num of readings
+    public static final String CFG_DIFFERENCING = "differencing";               // differencing in num of readings
     public static final String CFG_START_DATETIME = "start_datetime";          // filter start date/time
     public static final String CFG_STOP_DATETIME = "stop_datetime";           // filter end date/time
 

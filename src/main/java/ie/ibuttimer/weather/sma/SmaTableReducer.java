@@ -63,7 +63,7 @@ public class SmaTableReducer extends AbstractTableReducer<CompositeKey, TimeSeri
         engine.reduce(key, values, context);
 
         // only param is window size
-        addModelMetrics(context, key.getMainKey(), errorTracker,1, engine.getParams());
+        addModelMetrics(context, key.getMainKey(), errorTracker,1, (int)engine.getCount(), engine.getParams());
     }
 
     @Override

@@ -22,6 +22,15 @@
 
 package ie.ibuttimer.weather.common;
 
+/**
+ * Class to track error values
+ *
+ * Criterion from
+ * "Assessing the performance of a Gaussian mixture with AIC and BIC"
+ * "Hands-On Unsupervised Learning with Python" by Giuseppe Bonaccorso
+ * ISBN: 9781789348279
+ * https://learning.oreilly.com/library/view/hands-on-unsupervised-learning/9781789348279/966e5cc9-d8bd-401c-afdd-d1a88c2ae896.xhtml
+ */
 public class ErrorTracker {
 
     private double sqErrorSum;
@@ -48,10 +57,18 @@ public class ErrorTracker {
         ++count;
     }
 
+    /**
+     * Calculate MSE
+     * @return
+     */
     public double getMSE() {
         return sqErrorSum / count;
     }
 
+    /**
+     * Calculate MAAPE
+     * @return
+     */
     public double getMAAPE() {
         return absErrorSum / count;
     }
@@ -60,9 +77,28 @@ public class ErrorTracker {
      * Calculate Akaike information criterion (AIC)
      *
      * @param numParam estimated number of parameters
+     * @param likelihood log-likelihood
      * @return
      */
     public double getAIC(int numParam, double likelihood) {
+        // AIC = 2 * Np -2 * LL
         return (2 * numParam) - (2 * Math.log(likelihood));
+    }
+
+    /**
+     * Calculate Bayesian Information Criterion (BIC)
+     *
+     * @param numSamples number of samples
+     * @param numParam estimated number of parameters
+     * @param likelihood log-likelihood
+     * @return
+     */
+    public double getBIC(int numSamples, int numParam, double likelihood) {
+        // BIC = log(N) * Np - 2 * LL
+        return (Math.log(numSamples) * numParam) - (2 * Math.log(likelihood));
+    }
+
+    public long getCount() {
+        return count;
     }
 }

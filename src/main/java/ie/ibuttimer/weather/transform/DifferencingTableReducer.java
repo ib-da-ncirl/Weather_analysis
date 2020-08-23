@@ -30,6 +30,7 @@ import ie.ibuttimer.weather.common.TimeSeriesData;
 import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.Utils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Triple;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -65,14 +66,35 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
 
         Configuration conf = context.getConfiguration();
 
-        seasonal = 0;
-        differencing = 0;
-        String diffSetting = conf.get(CFG_TRANSFORM_DIFFERENCING, "");
+        Triple<Integer, Integer, String> setting = getSeasonalDiff(conf.get(CFG_DIFFERENCING, ""));
+        this.seasonal = setting.getLeft();
+        this.differencing = setting.getMiddle();
+        this.diffTypeName = setting.getRight();
+
+        cacheList = Lists.newArrayList();
+        if (differencing <= 0 && seasonal <= 0) {
+            statsAccumulators = new StatsAccumulator[1];    // stats for pass-through
+            cacheList = Lists.newArrayList(new Cache(0, 0, 0));    // 1st is just pass-through
+        } else {
+            statsAccumulators = new StatsAccumulator[differencing + 1]; // lags + pass-through
+            for (int i = 0; i < statsAccumulators.length; ++i) {
+                int depth = (i == 0 ? 0 : seasonal);
+                cacheList.add(new Cache(i * seasonal, depth, i));    // 1st is just pass-through
+                statsAccumulators[i] = new StatsAccumulator();
+            }
+        }
+    }
+
+    public static Triple<Integer, Integer, String> getSeasonalDiff(String diffSetting) {
+
+        int seasonal = 0;
+        int differencing = 0;
+        String diffTypeName = "";
         if (!StringUtils.isEmpty(diffSetting)) {
             String[] splits = diffSetting.split(",");
             boolean ok = (splits.length == 2);
             if (ok) {
-                this.diffTypeName = splits[0];
+                diffTypeName = splits[0];
                 int value = Integer.parseInt(splits[1]);
                 if (splits[0].equalsIgnoreCase(SEASON)) {
                     seasonal = value;   // seasonal width
@@ -85,22 +107,10 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
                 }
             }
             if (!ok) {
-                throw new IllegalArgumentException("Unrecognised " + CFG_TRANSFORM_DIFFERENCING + "argument: " + diffSetting);
+                throw new IllegalArgumentException("Unrecognised " + CFG_DIFFERENCING + "argument: " + diffSetting);
             }
         }
-
-        cacheList = Lists.newArrayList(new Cache(0, 0));    // 1st is just pass-through
-        if (differencing <= 0 && seasonal <= 0) {
-            statsAccumulators = new StatsAccumulator[1];    // stats for pass-through
-        } else {
-            statsAccumulators = new StatsAccumulator[differencing + 1]; // lags + pass-through
-            for (int i = 0; i < statsAccumulators.length; ++i) {
-                if (i < differencing) {
-                    cacheList.add(new Cache(i * seasonal, seasonal));
-                }
-                statsAccumulators[i] = new StatsAccumulator();
-            }
-        }
+        return Triple.of(seasonal, differencing, diffTypeName);
     }
 
     @Override
@@ -110,12 +120,12 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
 
         String name = key.getMainKey();
 
-        cacheList.forEach(c -> {
-            // id is cache len; 0,1,..
-            c.tag = getDifferenceColumnName(key, diffTypeName, c.prev.length);
+        for (int i = 0; i < cacheList.size(); i++) {
+            String tag = getDifferenceColumnName(key, diffTypeName, i);
+            cacheList.get(i).tag = tag;
 
-            statsAccumulators[c.prev.length].setTag(c.tag);
-        });
+            statsAccumulators[i].setTag(tag);
+        }
 
         values.forEach(v -> {
 
@@ -134,7 +144,7 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
                         put.addColumn(FAMILY_BYTES, c.tag.getBytes(), storeValueAsString(d));
                         diffVal[0] = d;
 
-                        statsAccumulators[c.prev.length].addValue(d, timestamp);
+                        statsAccumulators[c.index].addValue(d, timestamp);
                     });
             });
 
@@ -151,6 +161,10 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
                             a.getMinTimestamp(DATETIME_FMT), a.getMaxTimestamp(DATETIME_FMT)));
 
             // mark stats rows with STATS_ROW_MARK
+//            Put put = new Put(Bytes.toBytes(STATS_ROW_MARK + BASENAME))
+//                    .addColumn(FAMILY_BYTES, BASENAME.getBytes(), storeValueAsString(name));
+//            write(context, put);
+
             Put put = new Put(Bytes.toBytes(STATS_ROW_MARK + a.getTag()))
                     .addColumn(FAMILY_BYTES, COUNT.getBytes(), storeValueAsString(a.getCount()))
                     .addColumn(FAMILY_BYTES, MIN.getBytes(), storeValueAsString(a.getMin()))
@@ -160,7 +174,6 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
                     .addColumn(FAMILY_BYTES, STD_DEV.getBytes(), storeValueAsString(a.getSetDev()))
                     .addColumn(FAMILY_BYTES, MIN_TS.getBytes(), storeValueAsString(a.getMinTimestamp(DATETIME_FMT)))
                     .addColumn(FAMILY_BYTES, MAX_TS.getBytes(), storeValueAsString(a.getMaxTimestamp(DATETIME_FMT)));
-
             write(context, put);
         });
 
@@ -171,7 +184,11 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
     }
 
     public static String getDifferenceColumnName(CompositeKey key, String diffType, int id) {
-        return buildTag(Arrays.asList(key.getMainKey(), diffType, Integer.toString(id)));
+        return getDifferenceColumnName(key.getMainKey(), diffType, id);
+    }
+
+    public static String getDifferenceColumnName(String key, String diffType, int id) {
+        return buildTag(Arrays.asList(key, diffType, Integer.toString(id)));
     }
 
     @Override
@@ -189,14 +206,16 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
         int readIdx;
         boolean open;
         String tag;
+        int index;
 
-        public Cache(int trigger, int depth) {
+        public Cache(int trigger, int depth, int index) {
             this.trigger = trigger;
             this.prev = new double[depth];
             this.saveIdx = -1;
             this.readIdx = 0;
             this.open = false;
             this.tag = "";
+            this.index = index;
         }
 
         int next_idx() {
@@ -229,6 +248,16 @@ public class DifferencingTableReducer extends AbstractTableReducer<CompositeKey,
                 }
             }
             return difference;
+        }
+
+        @Override
+        public String toString() {
+            return "Cache{" +
+                    "trigger=" + trigger +
+                    ", open=" + open +
+                    ", index=" + index +
+                    ", tag='" + tag + '\'' +
+                    '}';
         }
     }
 }

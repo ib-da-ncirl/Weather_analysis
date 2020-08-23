@@ -96,7 +96,7 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
         // from other steps
         modelParams.append(" : ")
                 .append(CFG_ARIMA_D).append("=").append(conf.get(CFG_ARIMA_D))
-                .append(" : ").append(CFG_TRANSFORM_DIFFERENCING).append("=").append(sanitiseParam(conf.get(CFG_TRANSFORM_DIFFERENCING, "")))
+                .append(" : ").append(CFG_DIFFERENCING).append("=").append(sanitiseParam(conf.get(CFG_DIFFERENCING, "")))
                 .append(" : ").append(CFG_ZERO_TRANSFORM).append("=").append(conf.getBoolean(CFG_ZERO_TRANSFORM, false));
 
         valueWindow = new ArrayDeque<>();
@@ -176,7 +176,7 @@ public class ArimaTableReducer extends AbstractTableReducer<CompositeKey, TimeSe
         });
 
         addModelMetrics(context, key.getMainKey(), errorTracker,
-                arTerms.size() + maTerms.size() + (constant == 0 ? 0 : 1), modelParams.toString());
+                arTerms.size() + maTerms.size() + (constant == 0 ? 0 : 1), count.intValue(), modelParams.toString());
     }
 
     @Override

@@ -23,20 +23,27 @@
 package ie.ibuttimer.weather.transform;
 
 import com.google.common.collect.Lists;
-import ie.ibuttimer.weather.common.*;
+import ie.ibuttimer.weather.common.AbstractDriver;
+import ie.ibuttimer.weather.common.CKTSMapper;
+import ie.ibuttimer.weather.common.CompositeKey;
+import ie.ibuttimer.weather.common.TimeSeriesData;
 import ie.ibuttimer.weather.hbase.Hbase;
 import ie.ibuttimer.weather.misc.AppLogger;
 import ie.ibuttimer.weather.misc.IDriver;
 import ie.ibuttimer.weather.misc.JobConfig;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.Triple;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.mapreduce.Job;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 
 import static ie.ibuttimer.weather.Constants.*;
+import static ie.ibuttimer.weather.transform.DifferencingTableReducer.getSeasonalDiff;
 
 public class DifferencingDriver extends AbstractDriver implements IDriver {
 
@@ -65,6 +72,7 @@ public class DifferencingDriver extends AbstractDriver implements IDriver {
             String outputTable = map.get(CFG_DIFFERENCING_OUT_TABLE);
             Hbase hbase = null;
             try {
+                hbase = deleteTables(jobCfg, Collections.singletonList(outputTable));
                 hbase = createTable(jobCfg, outputTable);
             } finally {
                 if (hbase != null) {
@@ -89,8 +97,22 @@ public class DifferencingDriver extends AbstractDriver implements IDriver {
                     job);
 
             resultCode = startJob(job, jobCfg);
+            if (resultCode == STATUS_SUCCESS) {
+                saveResults(jobCfg, outputTable, logger);
+            }
         }
         return resultCode;
+    }
+
+    public static void saveResults(JobConfig jobCfg, String table, AppLogger logger) throws IOException {
+
+        Triple<Integer, Integer, String> setting = getSeasonalDiff(jobCfg.getProperty(CFG_DIFFERENCING, ""));
+        int seasonal = setting.getLeft();
+        int differencing = setting.getMiddle();
+        String diffTypeName = setting.getRight();
+
+        saveDriverResults(jobCfg, table, Arrays.asList(COUNT, MIN, MAX, MEAN, VARIANCE, STD_DEV, MIN_TS, MAX_TS),
+                jobCfg.getProperty(CFG_DIFFERENCING_PATH_ROOT, ""), logger);
     }
 
 }

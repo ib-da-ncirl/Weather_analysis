@@ -44,9 +44,13 @@ public class StatsAccumulator {
     private String tag;
 
     public StatsAccumulator() {
+        reset();
+    }
+
+    public void reset() {
         this.count = 0;
         this.min = Double.MAX_VALUE;
-        this.max = Double.MIN_VALUE;
+        this.max = Long.MIN_VALUE;  // 0.0 is not greater than Double.MIN_VALUE, as Double.MIN_VALUE "is smallest positive nonzero value of type double"
         this.mean = 0.0;
         this.variance = 0.0;
         this.minTimestamp = Long.MAX_VALUE;
@@ -120,5 +124,19 @@ public class StatsAccumulator {
 
     public void setTag(String tag) {
         this.tag = tag;
+    }
+
+    @Override
+    public String toString() {
+        return "StatsAccumulator{" +
+                "count=" + count +
+                ", min=" + min +
+                ", max=" + max +
+                ", mean=" + mean +
+                ", variance=" + variance +
+                ", minTimestamp=" + minTimestamp +
+                ", maxTimestamp=" + maxTimestamp +
+                ", tag='" + tag + '\'' +
+                '}';
     }
 }
